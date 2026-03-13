@@ -145,27 +145,64 @@ function ScadaTopology({ isUnderAttack }) {
     </div>
   );
 }
+// ... (Keep the ScadaTopology component exactly as it is above this) ...
 
 // ==========================================
 // MAIN APP COMPONENT
 // ==========================================
 function App() {
-  const [kpis, setKpis] = useState(null);
+  // We rename 'kpis' to 'statusData' to match our new API logic
+  const [statusData, setStatusData] = useState(null); 
   const [alerts, setAlerts] = useState([]);
+  const [devices, setDevices] = useState([]);
+  const [incidentData, setIncidentData] = useState(null);
+  
   const [isUnderAttack, setIsUnderAttack] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard'); 
 
+  // Polling logic to keep data fresh
   useEffect(() => {
-    apiClient.getKPIs().then(data => setKpis(data));
-    apiClient.getAlerts().then(data => setAlerts(data));
+    const fetchData = async () => {
+      const statusRes = await apiClient.getStatus();
+      if (statusRes) {
+        setStatusData(statusRes);
+        // Ensure UI state matches backend state
+        if (statusRes.is_under_attack !== isUnderAttack) {
+             setIsUnderAttack(statusRes.is_under_attack);
+        }
+      }
+      
+      const alertsRes = await apiClient.getAlerts();
+      if (alertsRes) setAlerts(alertsRes);
 
+      const devicesRes = await apiClient.getDevices();
+      if (devicesRes) setDevices(devicesRes);
+
+      const incidentRes = await apiClient.getIncidentDetails();
+      if (incidentRes) setIncidentData(incidentRes);
+    };
+
+    // Initial fetch
+    fetchData();
+
+    // Poll every 3 seconds to keep UI synced with backend
+    const interval = setInterval(fetchData, 3000);
+
+    // Setup Live WebSocket
     apiClient.connectWebSocket((newAlert) => {
       setAlerts((prevAlerts) => [newAlert, ...prevAlerts]);
-      if (newAlert.severity === 'CRITICAL') setIsUnderAttack(true);
+      if (newAlert.severity === 'CRITICAL') {
+         setIsUnderAttack(true);
+         // Force an immediate fetch to update all numbers immediately on attack
+         fetchData(); 
+      }
     });
+
+    return () => clearInterval(interval);
   }, []);
 
-  if (!kpis) return <div className="loading-screen">INITIALIZING SECURE BLUE PROTOCOL...</div>;
+  // Show loading screen while waiting for the first backend response
+  if (!statusData) return <div className="loading-screen">INITIALIZING SECURE BLUE PROTOCOL...</div>;
 
   const criticalAlertsCount = alerts.filter(a => a.severity === 'CRITICAL').length;
   const calmEqualizer =   [1,2,3,2,4,3,2,1,2,3,4,3,2,1,2,3,2,1,1,1]; 
@@ -222,14 +259,14 @@ function App() {
           </div>
         </header>
 
-        {/* --- TAB 1: DASHBOARD (THE ORIGINAL 9-BOX UNCHANGED GRID) --- */}
+        {/* --- TAB 1: DASHBOARD --- */}
         {activeTab === 'dashboard' && (
           <div className="master-grid">
             
             {/* ROW 1: KPIs */}
             <div className="card kpi-card bg-grad-cyan pos-kpi1">
               <div className="kpi-top"><span className="kpi-icon text-cyan">🤖</span><span className="kpi-title">Machines Online</span></div>
-              <div className="kpi-value text-white">{kpis.devices_online}</div>
+              <div className="kpi-value text-white">{statusData.devices_online}</div>
             </div>
             <div className={`card kpi-card ${isUnderAttack ? 'bg-grad-red border-flash' : 'bg-grad-cyan'} pos-kpi2`}>
               <div className="kpi-top"><span className={`kpi-icon ${isUnderAttack ? 'alert-bg text-red' : 'text-cyan'}`}>{isUnderAttack ? '🚨' : '✅'}</span><span className="kpi-title">Network Status</span></div>
@@ -237,7 +274,7 @@ function App() {
             </div>
             <div className={`card kpi-card ${isUnderAttack ? 'bg-grad-red border-flash' : 'bg-grad-cyan'} pos-kpi3`}>
               <div className="kpi-top"><span className={`kpi-icon ${isUnderAttack ? 'alert-bg text-red' : 'text-cyan'}`}>⚠️</span><span className="kpi-title">Active Alerts:</span></div>
-              <div className={`kpi-value ${isUnderAttack ? 'text-red' : 'text-cyan'}`}>{criticalAlertsCount > 0 ? criticalAlertsCount : 0}</div>
+              <div className={`kpi-value ${isUnderAttack ? 'text-red' : 'text-cyan'}`}>{statusData.critical_alerts}</div>
             </div>
 
             {/* ROW 2: CHARTS */}
@@ -245,7 +282,7 @@ function App() {
               <div className="card-title">Network Traffic <span className="subtitle">(Live Feed)</span></div>
               <div className="traffic-content">
                 <div className="traffic-chart-wrapper">
-                  <div className="y-axis"><span>500</span><span>400</span><span>300</span><span>200</span><span>100</span><span>000</span></div>
+                  <div className="y-axis"><span>15k</span><span>12k</span><span>9k</span><span>6k</span><span>3k</span><span>0</span></div>
                   <div className="traffic-graph-area overflow-hidden">
                     <div className="bg-grid-lines"><div className="h-line"></div><div className="h-line"></div><div className="h-line"></div><div className="h-line"></div><div className="h-line"></div></div>
                     <svg className="animated-wave" viewBox="0 0 800 120" preserveAspectRatio="none">
@@ -263,7 +300,12 @@ function App() {
                 </div>
                 <div className="traffic-donut-wrapper">
                   <div className="donut-outer-ring border-cyan"></div>
-                  <div className="traffic-donut" style={{background: `conic-gradient(${isUnderAttack ? '#ef4444' : '#00d2ff'} 0% 75%, var(--card-border) 75%)`}}><div className="donut-inner"><span className="d-num text-white">{kpis.devices_online}</span><span className="d-text">Operational</span></div></div>
+                  <div className="traffic-donut" style={{background: `conic-gradient(${isUnderAttack ? '#ef4444' : '#00d2ff'} 0% 75%, var(--card-border) 75%)`}}>
+                     <div className="donut-inner">
+                        <span className="d-num text-white" style={{fontSize: '14px'}}>{statusData.packets_per_second}</span>
+                        <span className="d-text">Packets/Sec</span>
+                     </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -298,11 +340,11 @@ function App() {
                 <span className="dots-menu">•••</span>
               </div>
               <div className="panel-body">
-                <div className="ai-row"><span className="ai-label">Device:</span> <span className="ai-val text-white">PLC-03</span></div>
-                <div className="ai-row"><span className="ai-label">Predicted Attack:</span> <span className="ai-val text-white">{isUnderAttack ? 'Modbus Injection' : 'Normal Operations'}</span></div>
+                <div className="ai-row"><span className="ai-label">Model Status:</span> <span className="ai-val text-white">{statusData.baseline_status}</span></div>
+                <div className="ai-row"><span className="ai-label">Predicted Threat:</span> <span className="ai-val text-white">{statusData.active_threat}</span></div>
                 <div className="confidence-area">
-                  <div className="conf-text"><span>Confidence: <span className="text-white">{isUnderAttack ? kpis.ml_confidence : 12}%</span></span></div>
-                  <div className="progress-bg"><div className={`progress-fill ${isUnderAttack ? 'grad-red-bar' : 'bg-cyan'}`} style={{width: `${isUnderAttack ? kpis.ml_confidence : 12}%`}}><span className="prog-label">HIGH</span></div></div>
+                  <div className="conf-text"><span>Confidence: <span className="text-white">{statusData.ml_confidence}%</span></span></div>
+                  <div className="progress-bg"><div className={`progress-fill ${isUnderAttack ? 'grad-red-bar' : 'bg-cyan'}`} style={{width: `${statusData.ml_confidence}%`}}><span className="prog-label">HIGH</span></div></div>
                 </div>
                 <div className={`risk-level ${isUnderAttack ? 'text-red' : 'text-cyan'}`}><span className="risk-bars">|||</span> Risk Level: <span className="risk-badge" style={{color: isUnderAttack ? '#ef4444' : '#00d2ff', borderColor: isUnderAttack ? '#ef4444' : '#00d2ff', background: 'transparent'}}>{isUnderAttack ? 'HIGH' : 'LOW'}</span></div>
               </div>
@@ -315,7 +357,7 @@ function App() {
               </div>
               <div className="panel-body flex-row-center">
                  <div className="eq-info">
-                   <div className="eq-dev-line"><span className="eq-label">Device:</span> <span className="eq-val text-white">{isUnderAttack ? 'PLC-02' : 'System'}</span></div>
+                   <div className="eq-dev-line"><span className="eq-label">System State:</span> <span className="eq-val text-white">{isUnderAttack ? 'Compromised' : 'Monitoring'}</span></div>
                    <div className="eq-desc">{isUnderAttack ? <span className="text-red">Unauthorized<br/>Command Injection</span> : <>Baseline Traffic<br/>Normal</>}</div>
                  </div>
                  <div className="eq-visual-area">
@@ -378,7 +420,7 @@ function App() {
              </div>
              <div className="card bg-grad-cyan">
                <div className="card-title">Shadow IT Scanner</div>
-               <p className="text-dim mt-2">{isUnderAttack ? <span className="text-red">Unauthorized Laptop Detected (45.X.X.X)</span> : 'No unauthorized devices detected in OT network.'}</p>
+               <p className="text-dim mt-2">{isUnderAttack ? <span className="text-red">Unauthorized Device Detected ({devices.find(d=>d.type==="Threat")?.ip})</span> : 'No unauthorized devices detected in OT network.'}</p>
              </div>
           </div>
         )}
@@ -390,7 +432,7 @@ function App() {
               <div className="card-title">Network Traffic Graph</div>
               <div className="traffic-content" style={{height: '200px'}}>
                 <div className="traffic-chart-wrapper">
-                  <div className="y-axis"><span>500</span><span>400</span><span>300</span><span>200</span><span>100</span><span>0</span></div>
+                  <div className="y-axis"><span>15k</span><span>12k</span><span>9k</span><span>6k</span><span>3k</span><span>0</span></div>
                   <div className="traffic-graph-area overflow-hidden">
                     <div className="bg-grid-lines"><div className="h-line"></div><div className="h-line"></div><div className="h-line"></div><div className="h-line"></div><div className="h-line"></div></div>
                     <svg className="animated-wave" viewBox="0 0 800 120" preserveAspectRatio="none">
@@ -437,22 +479,14 @@ function App() {
              <table className="pro-table mt-4">
                 <thead><tr><th>Device Name</th><th>IP Address</th><th>Protocol</th><th>Status</th></tr></thead>
                 <tbody>
-                  {NODES.map((n, i) => (
-                    <tr key={i}>
-                      <td className="text-white font-bold">{n.icon} {n.label}</td>
-                      <td className="text-dim">{n.isTarget && isUnderAttack ? '10.0.0.12 (Targeted)' : `10.0.0.${10+i}`}</td>
-                      <td className="text-dim">Modbus TCP</td>
-                      <td><span className={`solid-pill ${n.isTarget && isUnderAttack ? 'critical' : 'low'}`}>{n.isTarget && isUnderAttack ? 'COMPROMISED' : 'ONLINE'}</span></td>
+                  {devices.map((n, i) => (
+                    <tr key={i} className={n.type === "Threat" ? "flash-bg" : ""}>
+                      <td className={n.type === "Threat" ? "text-red font-bold" : "text-white"}>{n.type === "Threat" ? '☠️ ' : ''}{n.name}</td>
+                      <td className="text-dim">{n.ip}</td>
+                      <td className="text-dim">TCP/IP</td>
+                      <td><span className={`solid-pill ${n.status === 'ONLINE' ? 'low' : 'critical'}`}>{n.status}</span></td>
                     </tr>
                   ))}
-                  {isUnderAttack && (
-                    <tr className="flash-bg">
-                      <td className="text-red font-bold">☠️ Unknown Device</td>
-                      <td className="text-white">45.X.X.X</td>
-                      <td className="text-dim">TCP</td>
-                      <td><span className="solid-pill critical">ROGUE</span></td>
-                    </tr>
-                  )}
                 </tbody>
              </table>
           </div>
@@ -469,9 +503,9 @@ function App() {
              <div className="card bg-grad-cyan">
                <div className="card-title">Network Channel Info</div>
                <div className="mt-4 text-white">
-                 <p className="mb-2">Protocol: <span className="text-cyan font-bold">Modbus</span></p>
-                 <p className="mb-2">Transport: <span className="text-cyan font-bold">TCP</span></p>
-                 <p className="mb-2">Port: <span className="text-cyan font-bold">502</span></p>
+                 <p className="mb-2">Protocol: <span className="text-cyan font-bold">{incidentData?.protocol || 'Modbus TCP'}</span></p>
+                 <p className="mb-2">Transport: <span className="text-cyan font-bold">{incidentData?.transport || 'TCP'}</span></p>
+                 <p className="mb-2">Port: <span className="text-cyan font-bold">{incidentData?.port || '502'}</span></p>
                </div>
              </div>
              <div className="card span-full">
@@ -479,9 +513,9 @@ function App() {
                <div className="mt-4">
                  {isUnderAttack ? (
                    <ul className="text-red list-disc pl-5">
-                     <li className="mb-2">Step 1: Isolate PLC-01 from main VLAN.</li>
-                     <li className="mb-2">Step 2: Block IP 45.X.X.X at perimeter firewall.</li>
-                     <li className="mb-2">Step 3: Flush Modbus holding registers.</li>
+                     {incidentData?.playbook_steps?.map((step, i) => (
+                         <li key={i} className="mb-2">{step}</li>
+                     ))}
                    </ul>
                  ) : (
                    <p className="text-cyan">No active playbooks required. System is secure.</p>
@@ -500,10 +534,10 @@ function App() {
               </div>
               <div className="panel-body">
                 <div className="ai-row"><span className="ai-label">Model:</span> <span className="ai-val text-white">Isolation Forest (v2.1)</span></div>
-                <div className="ai-row"><span className="ai-label">Predicted Attack:</span> <span className="ai-val text-white">{isUnderAttack ? 'Modbus Injection' : 'Normal Operations'}</span></div>
+                <div className="ai-row"><span className="ai-label">Predicted Attack:</span> <span className="ai-val text-white">{statusData.active_threat}</span></div>
                 <div className="confidence-area">
-                  <div className="conf-text"><span>AI Confidence: <span className="text-white">{isUnderAttack ? kpis.ml_confidence : 12}%</span></span></div>
-                  <div className="progress-bg"><div className={`progress-fill ${isUnderAttack ? 'grad-red-bar' : 'bg-cyan'}`} style={{width: `${isUnderAttack ? kpis.ml_confidence : 12}%`}}></div></div>
+                  <div className="conf-text"><span>AI Confidence: <span className="text-white">{statusData.ml_confidence}%</span></span></div>
+                  <div className="progress-bg"><div className={`progress-fill ${isUnderAttack ? 'grad-red-bar' : 'bg-cyan'}`} style={{width: `${statusData.ml_confidence}%`}}></div></div>
                 </div>
                 <div className={`risk-level ${isUnderAttack ? 'text-red' : 'text-cyan'}`}>Risk Level: {isUnderAttack ? 'HIGH' : 'LOW'}</div>
               </div>

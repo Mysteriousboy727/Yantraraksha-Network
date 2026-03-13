@@ -1,97 +1,34 @@
-# main.py
-from fastapi import FastAPI
+# backend/main.py
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from app import models
-from app.database import engine
+from pydantic import BaseModel
+from typing import List
 import datetime
-
-# Database tables create karna
-models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Suraksha SENTINEL API")
 
-# CORS SETUP: Ye bohot zaroori hai! 
-# Ye React (jo port 5174 par chalega) ko FastAPI (port 8000) se baat karne ki permission deta hai.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Hackathon ke liye allow all
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.get("/")
-def read_root():
-    return {"message": "Suraksha SENTINEL Backend is Running!"}
+# 🧠 THE DEMO BRAIN
+SYSTEM_STATE = {
+    "is_under_attack": False,
+    "current_threat_ip": None,
+    "target_device": None,
+    "attack_type": None,
+    "severity": None
+}
 
-# ==========================================
-# Phase 2: Naye API Endpoints (Mock Data)
-# ==========================================
+# 🗄️ NEW: This list will store all attacks so the count keeps increasing!
+ALERT_HISTORY = []
+ALERT_COUNTER = 1
 
-@app.get("/api/v1/kpi")
-def get_kpis():
-    # Ye fake data hai dashboard ke upar wale 6 boxes ke liye
-    return {
-        "active_threats": 3,
-        "active_threats_surge": 1,
-        "devices_online": 24,
-        "total_devices": 26,
-        "packets_per_second": 4280,
-        "baseline_packets": 3800,
-        "anomaly_score": 87,
-        "ml_confidence": 96,
-        "violations": 14,
-        "mean_time_to_detect": 1.2
-    }
-
-@app.get("/api/v1/alerts")
-def get_alerts(limit: int = 50):
-    # Ye mock alert hai tumhare Alert Feed tab ke liye
-    return [
-        {
-            "id": 1,
-            "source_ip": "192.168.1.105",
-            "destination_ip": "10.0.0.12",
-            "severity": "CRITICAL",
-            "mitre_tag": "T0836",
-            "title": "Unauthorized Modbus Write (FC-05)",
-            "description": "Rogue IP attempting to stop PLC.",
-            "timestamp": datetime.datetime.utcnow().isoformat()
-        },
-        {
-            "id": 2,
-            "source_ip": "192.168.1.15",
-            "destination_ip": "10.0.0.12",
-            "severity": "MEDIUM",
-            "mitre_tag": "T0801",
-            "title": "Traffic Anomaly Detected",
-            "description": "Isolation Forest detected abnormal packet rate.",
-            "timestamp": datetime.datetime.utcnow().isoformat()
-        }
-    ]
-
-@app.get("/api/v1/devices")
-def get_devices():
-    # Sidebar mein factory machines ki list dikhane ke liye
-    return [
-        {"id": 1, "device_name": "Main Conveyor PLC", "ip_address": "10.0.0.12", "protocol": "Modbus", "status": "online", "anomaly_score": 12, "whitelisted": True},
-        {"id": 2, "device_name": "Cooling Pump HMI", "ip_address": "10.0.0.15", "protocol": "DNP3", "status": "online", "anomaly_score": 5, "whitelisted": True},
-        {"id": 3, "device_name": "UNKNOWN_LAPTOP", "ip_address": "192.168.1.105", "protocol": "TCP", "status": "rogue", "anomaly_score": 98, "whitelisted": False}
-    ]
-
-@app.get("/api/v1/traffic/timeline")
-def get_traffic():
-    # Graph draw karne ke liye khali list abhi ke liye
-    return []
-
-from fastapi import WebSocket, WebSocketDisconnect
-from typing import List
-
-# ==========================================
-# Phase 3: WebSocket & Real-Time Alerting
-# ==========================================
-
-# Ye manager saare connected dashboards ka record rakhega
+# --- WEBSOCKET MANAGER ---
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -103,42 +40,132 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
 
-    # Ye function ek second mein saare screens par alert bhej dega
     async def broadcast(self, message: dict):
         for connection in self.active_connections:
             await connection.send_json(message)
 
 manager = ConnectionManager()
 
-# Ye wo rasta hai jisse React dashboard live connect hoga
-@app.websocket("/ws/alerts")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    try:
-        while True:
-            # Hum sirf connection zinda rakh rahe hain
-            data = await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
+# ==========================================
+# APIs
+# ==========================================
 
-# ==========================================
-# THE HACKER ENDPOINT (Demo ke liye)
-# ==========================================
+@app.get("/api/v1/status")
+def get_global_status():
+    if SYSTEM_STATE["is_under_attack"]:
+        return {
+            "is_under_attack": True,
+            "devices_online": 6,
+            "packets_per_second": 14250, 
+            "critical_alerts": len(ALERT_HISTORY),  # 🔥 Count will now increase!
+            "ml_confidence": 98.5,       
+            "baseline_status": "Trained",
+            "active_threat": SYSTEM_STATE["attack_type"]
+        }
+    else:
+        return {
+            "is_under_attack": False,
+            "devices_online": 6,
+            "packets_per_second": 3420,  
+            "critical_alerts": 0,
+            "ml_confidence": 12.0,       
+            "baseline_status": "Trained",
+            "active_threat": "None"
+        }
+
+@app.get("/api/v1/alerts")
+def get_alerts():
+    # 🔥 Return the full history of attacks (newest first)
+    return ALERT_HISTORY
+
+@app.get("/api/v1/devices")
+def get_devices():
+    base_devices = [
+        {"ip": "10.0.0.11", "name": "HMI-D1", "status": "ONLINE", "type": "Known"},
+        {"ip": "10.0.0.12", "name": "PLC-01", "status": "ONLINE", "type": "Known"},
+        {"ip": "10.0.0.13", "name": "Robotic Arm", "status": "ONLINE", "type": "Known"},
+        {"ip": "10.0.0.14", "name": "Conveyor Sensor", "status": "ONLINE", "type": "Known"},
+        {"ip": "10.0.0.15", "name": "HMI-01", "status": "ONLINE", "type": "Known"},
+        {"ip": "10.0.0.16", "name": "PLC-04", "status": "ONLINE", "type": "Known"}
+    ]
+    if SYSTEM_STATE["is_under_attack"]:
+        base_devices.append({
+            "ip": SYSTEM_STATE["current_threat_ip"], 
+            "name": "Unknown Device", 
+            "status": "ROGUE", 
+            "type": "Threat"
+        })
+        for device in base_devices:
+            if device["name"] == "PLC-01":
+                device["status"] = "COMPROMISED"
+    return base_devices
+
+@app.get("/api/v1/incident-details")
+def get_incident_details():
+    if SYSTEM_STATE["is_under_attack"]:
+        return {
+            "protocol": "Modbus TCP",
+            "transport": "TCP",
+            "port": 502,
+            "function_code": "0x05",
+            "fc_name": "Write Single Coil",
+            "playbook_steps": [
+                "Isolate PLC-01 from main VLAN.",
+                f"Block IP {SYSTEM_STATE['current_threat_ip']} at perimeter firewall.",
+                "Flush Modbus holding registers."
+            ]
+        }
+    return {"message": "System is secure."}
+
+class AttackPayload(BaseModel):
+    attacker_ip: str = "45.33.32.156"
+    target_device: str = "10.0.0.12 (PLC-01)"
+    attack_type: str = "Modbus Write Injection"
+
 @app.post("/api/v1/trigger-attack")
-async def trigger_attack():
-    # Ye ek FAKE attack generate karega aur turant WebSocket pe bhej dega
-    hacker_alert = {
-        "id": 999,
-        "source_ip": "192.168.1.200",  # Hacker ka Naya IP
-        "destination_ip": "10.0.0.12",   # Factory ki Machine
+async def trigger_attack(payload: AttackPayload):
+    global ALERT_COUNTER
+    
+    SYSTEM_STATE["is_under_attack"] = True
+    SYSTEM_STATE["current_threat_ip"] = payload.attacker_ip
+    SYSTEM_STATE["target_device"] = payload.target_device
+    SYSTEM_STATE["attack_type"] = payload.attack_type
+    SYSTEM_STATE["severity"] = "CRITICAL"
+    
+    # Create a unique alert every time
+    live_alert = {
+        "id": f"A-{1000 + ALERT_COUNTER}",
+        "source_ip": payload.attacker_ip,
+        "destination_ip": payload.target_device,
         "severity": "CRITICAL",
         "mitre_tag": "T0836",
-        "title": "🚨 LIVE ATTACK: Modbus Write Injection",
-        "description": "Rogue device attempting to STOP the production line!",
+        "title": f"LIVE ATTACK: {payload.attack_type}",
+        "description": "Rogue device attempting to alter physical process state!",
         "timestamp": datetime.datetime.utcnow().isoformat()
     }
     
-    # Alert ko live dashboard par push karo!
-    await manager.broadcast({"type": "alert", "data": hacker_alert})
+    # 🔥 Add the new alert to the TOP of the history list
+    ALERT_HISTORY.insert(0, live_alert)
+    ALERT_COUNTER += 1
     
-    return {"message": "Attack Successfully Sent to Dashboard!"}
+    await manager.broadcast({"type": "alert", "data": live_alert})
+    return {"status": "success", "message": "Attack triggered successfully!"}
+
+@app.websocket("/ws/alerts")
+async def alerts_websocket(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+# 🔥 THE RESET API: Clears everything back to Green!
+@app.post("/api/v1/reset")
+def reset_system():
+    global ALERT_COUNTER
+    SYSTEM_STATE["is_under_attack"] = False
+    SYSTEM_STATE["current_threat_ip"] = None
+    ALERT_HISTORY.clear() # Delete all past alerts
+    ALERT_COUNTER = 1     # Reset ID counter
+    return {"message": "System reset to secure baseline."}
