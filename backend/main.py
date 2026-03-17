@@ -26,14 +26,14 @@ SYSTEM_STATE = {
     "target_device":     None,
     "attack_type":       None,
     "severity":          None,
-    "attacker_blocked":  False,   # NEW
-    "blocked_by":        None,    # NEW: "manual" | "auto"
-    "ml_engine_active":  True,    # NEW
-    "auto_respond":      False,   # NEW: auto-block toggle
+    "attacker_blocked":  False,
+    "blocked_by":        None,
+    "ml_engine_active":  True,
+    "auto_respond":      False,
 }
 
-ALERT_HISTORY = []
-BLOCKED_IPS   = {}   # { ip: { reason, blocked_at, blocked_by, firewall } }
+ALERT_HISTORY = []   # ← grows forever, never cleared on soft-reset
+BLOCKED_IPS   = {}
 ALERT_COUNTER = 1
 
 # ==========================================
@@ -91,7 +91,7 @@ def _unblock_ip_firewall(ip: str) -> str:
         return f"error: {e}"
 
 # ==========================================
-# 📡 API 1 — STATUS
+# API 1 — STATUS
 # ==========================================
 @app.get("/api/v1/status")
 def get_global_status():
@@ -103,32 +103,34 @@ def get_global_status():
         "current_threat_ip": SYSTEM_STATE["current_threat_ip"],
         "ml_engine_active":  SYSTEM_STATE["ml_engine_active"],
         "auto_respond":      SYSTEM_STATE["auto_respond"],
+        # Always return TOTAL alert count — never resets to 0
+        "total_alerts":      len(ALERT_HISTORY),
     }
     if SYSTEM_STATE["is_under_attack"]:
         return {**base,
             "is_under_attack":    True,
             "packets_per_second": 14250,
-            "critical_alerts":    len(ALERT_HISTORY),
+            "critical_alerts":    len([a for a in ALERT_HISTORY if a["severity"] == "CRITICAL"]),
             "ml_confidence":      98.5,
             "active_threat":      SYSTEM_STATE["attack_type"],
         }
     return {**base,
         "is_under_attack":    False,
         "packets_per_second": 3420,
-        "critical_alerts":    0,
+        "critical_alerts":    len([a for a in ALERT_HISTORY if a["severity"] == "CRITICAL"]),
         "ml_confidence":      12.0,
         "active_threat":      "None",
     }
 
 # ==========================================
-# 📡 API 2 — ALERTS
+# API 2 — ALERTS
 # ==========================================
 @app.get("/api/v1/alerts")
 def get_alerts():
-    return ALERT_HISTORY
+    return ALERT_HISTORY   # full growing history
 
 # ==========================================
-# 📡 API 3 — DEVICES
+# API 3 — DEVICES
 # ==========================================
 @app.get("/api/v1/devices")
 def get_devices():
@@ -153,7 +155,7 @@ def get_devices():
     return base_devices
 
 # ==========================================
-# 📡 API 4 — INCIDENT DETAILS
+# API 4 — INCIDENT DETAILS
 # ==========================================
 @app.get("/api/v1/incident-details")
 def get_incident_details():
@@ -173,7 +175,7 @@ def get_incident_details():
     return {"message": "System is secure."}
 
 # ==========================================
-# 📡 API 5 — TRIGGER ATTACK (demo)
+# API 5 — TRIGGER ATTACK
 # ==========================================
 class AttackPayload(BaseModel):
     attacker_ip:   str = "45.33.32.156"
@@ -208,7 +210,7 @@ async def trigger_attack(payload: AttackPayload):
     ALERT_COUNTER += 1
     await manager.broadcast({"type": "alert", "data": live_alert})
 
-    # ── Auto-respond if enabled ──────────────────────────────────
+    # Auto-respond
     if SYSTEM_STATE["auto_respond"] and SYSTEM_STATE["ml_engine_active"]:
         fw = _block_ip_firewall(payload.attacker_ip)
         BLOCKED_IPS[payload.attacker_ip] = {
@@ -234,11 +236,11 @@ async def trigger_attack(payload: AttackPayload):
         ALERT_COUNTER += 1
         await manager.broadcast({"type": "auto_block", "data": auto_alert})
 
-    return {"status": "success", "message": "Attack triggered!"}
+    return {"status": "success", "message": "Attack triggered!",
+            "total_alerts": len(ALERT_HISTORY)}
 
 # ==========================================
-# 🛑 NEW API 6 — MANUAL BLOCK ATTACKER
-# Officer clicks "Block Attacker" on dashboard
+# API 6 — BLOCK ATTACKER
 # ==========================================
 class BlockRequest(BaseModel):
     ip:     Optional[str] = None
@@ -254,10 +256,7 @@ async def block_attacker(req: BlockRequest):
     if ip in BLOCKED_IPS:
         return {"status": "already_blocked", "ip": ip}
 
-    # 1. Firewall rule
     fw_status = _block_ip_firewall(ip)
-
-    # 2. Track it
     BLOCKED_IPS[ip] = {
         "reason":     req.reason,
         "blocked_at": datetime.datetime.utcnow().isoformat(),
@@ -267,7 +266,6 @@ async def block_attacker(req: BlockRequest):
     SYSTEM_STATE["attacker_blocked"] = True
     SYSTEM_STATE["blocked_by"]       = "manual"
 
-    # 3. Alert entry
     block_alert = {
         "id":             f"A-{1000 + ALERT_COUNTER}",
         "source_ip":      "OFFICER",
@@ -281,34 +279,31 @@ async def block_attacker(req: BlockRequest):
     ALERT_HISTORY.insert(0, block_alert)
     ALERT_COUNTER += 1
 
-    # 4. Broadcast
     await manager.broadcast({
         "type": "attacker_blocked",
         "data": {"ip": ip, "blocked_by": "manual",
                  "firewall": fw_status,
                  "timestamp": datetime.datetime.utcnow().isoformat()},
     })
-
     return {"status": "blocked", "ip": ip,
             "firewall": fw_status, "blocked_by": "manual"}
 
 # ==========================================
-# 🤖 NEW API 7 — ML ENGINE CONTROL
-# Start/stop engine + toggle auto-respond
+# API 7 — ML ENGINE CONTROL
 # ==========================================
 class MLControlRequest(BaseModel):
-    action: str  # "start" | "stop" | "auto_on" | "auto_off"
+    action: str
 
 @app.post("/api/v1/ml-control")
 async def ml_control(req: MLControlRequest):
     if req.action == "start":
         SYSTEM_STATE["ml_engine_active"] = True
         await manager.broadcast({"type": "ml_status", "data": {"active": True}})
-        return {"status": "started", "ml_engine_active": True}
+        return {"status": "started"}
     elif req.action == "stop":
         SYSTEM_STATE["ml_engine_active"] = False
         await manager.broadcast({"type": "ml_status", "data": {"active": False}})
-        return {"status": "stopped", "ml_engine_active": False}
+        return {"status": "stopped"}
     elif req.action == "auto_on":
         SYSTEM_STATE["auto_respond"] = True
         return {"status": "auto_respond_enabled"}
@@ -318,14 +313,14 @@ async def ml_control(req: MLControlRequest):
     return {"status": "error", "message": "Unknown action"}
 
 # ==========================================
-# 📋 NEW API 8 — VIEW BLOCKED IPs
+# API 8 — BLOCKED IPs
 # ==========================================
 @app.get("/api/v1/blocked-ips")
 def get_blocked_ips():
     return {"total": len(BLOCKED_IPS), "blocked": BLOCKED_IPS}
 
 # ==========================================
-# 🔓 NEW API 9 — UNBLOCK IP
+# API 9 — UNBLOCK
 # ==========================================
 class UnblockRequest(BaseModel):
     ip: str
@@ -342,10 +337,33 @@ async def unblock_ip(req: UnblockRequest):
     return {"status": "unblocked", "ip": req.ip, "firewall": fw_status}
 
 # ==========================================
-# 🔄 API 10 — RESET (existing, kept)
+# API 10 — SOFT RESET ← KEY FIX
+# Resets attack state + blocked IPs
+# but KEEPS alert history so count grows
+# ==========================================
+@app.post("/api/v1/soft-reset")
+def soft_reset():
+    """
+    Called by hacker_attack.py before each new attack.
+    Clears blocked state so officer can block again.
+    Does NOT clear ALERT_HISTORY — count keeps increasing.
+    """
+    SYSTEM_STATE.update({
+        "is_under_attack":   False,
+        "current_threat_ip": None,
+        "attacker_blocked":  False,
+        "blocked_by":        None,
+    })
+    BLOCKED_IPS.clear()
+    # NOTE: ALERT_HISTORY and ALERT_COUNTER are intentionally NOT reset
+    return {"message": "Soft reset — attack state cleared, alert history preserved.",
+            "total_alerts": len(ALERT_HISTORY)}
+
+# ==========================================
+# API 11 — FULL RESET (manual, clears everything)
 # ==========================================
 @app.post("/api/v1/reset")
-def reset_system():
+def full_reset():
     global ALERT_COUNTER
     SYSTEM_STATE.update({
         "is_under_attack":   False,
@@ -356,10 +374,10 @@ def reset_system():
     ALERT_HISTORY.clear()
     BLOCKED_IPS.clear()
     ALERT_COUNTER = 1
-    return {"message": "System reset to secure baseline."}
+    return {"message": "Full reset — all data cleared."}
 
 # ==========================================
-# 🔌 WEBSOCKET
+# WEBSOCKET
 # ==========================================
 @app.websocket("/ws/alerts")
 async def alerts_websocket(websocket: WebSocket):
