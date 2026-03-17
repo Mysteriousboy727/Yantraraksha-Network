@@ -185,7 +185,7 @@ body {
 /* UTILS */
 .text-cyan { color: var(--c-cyan) !important;}
 .text-red { color: var(--c-red) !important;}
-.text-white { color: #fff;}
+.text-white { color: var(--text-main);}
 .text-dim { color: var(--text-dim);}
 .font-bold { font-weight: bold;}
 .bg-cyan { background: var(--c-cyan); }

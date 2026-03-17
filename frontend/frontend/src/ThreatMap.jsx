@@ -1,372 +1,540 @@
-// src/ThreatMap.jsx
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-// ── Attacker IP → geo coordinates ────────────────────────────────────────
-const IP_GEO = {
-  "45.33.32.156":  { lat: 37.77,  lon: -122.41, country: "USA",     city: "San Francisco", region: "North America" },
-  "192.168.1.99":  { lat: 55.75,  lon:   37.61, country: "Russia",  city: "Moscow",        region: "Europe"        },
-  "10.10.10.55":   { lat: 39.90,  lon:  116.40, country: "China",   city: "Beijing",       region: "Asia"          },
-  "77.88.55.22":   { lat: 52.52,  lon:   13.40, country: "Germany", city: "Berlin",        region: "Europe"        },
-  "185.220.101.1": { lat: 51.50,  lon:   -0.12, country: "UK",      city: "London",        region: "Europe"        },
-  "103.21.244.0":  { lat: 28.61,  lon:   77.20, country: "India",   city: "New Delhi",     region: "Asia"          },
-  "41.223.57.100": { lat: -1.29,  lon:   36.82, country: "Kenya",   city: "Nairobi",       region: "Africa"        },
-  "200.185.0.1":   { lat: -23.55, lon:  -46.63, country: "Brazil",  city: "São Paulo",     region: "South America" },
-  "SENTINEL-AI":   null,
-  "OFFICER":       null,
+const HOME = { lat: 13.08, lon: 80.27, label: 'ICS Factory' };
+
+const KNOWN = {
+  '45.33':   { lat: 37.39, lon: -122.08, country: 'USA', city: 'Mountain View' },
+  '103.21':  { lat: 1.35, lon: 103.82, country: 'Singapore', city: 'Singapore' },
+  '192.168': { lat: 28.61, lon: 77.21, country: 'India', city: 'New Delhi' },
+  '10.0':    { lat: 55.76, lon: 37.62, country: 'Russia', city: 'Moscow' },
+  '45.':     { lat: 39.9, lon: 116.41, country: 'China', city: 'Beijing' },
+  '185.':    { lat: 51.51, lon: -0.13, country: 'UK', city: 'London' },
+  '91.':     { lat: 48.86, lon: 2.35, country: 'France', city: 'Paris' },
+  '5.':      { lat: 52.37, lon: 4.9, country: 'Netherlands', city: 'Amsterdam' },
+  '196.':    { lat: -26.2, lon: 28.04, country: 'South Africa', city: 'Johannesburg' },
+  '177.':    { lat: -23.55, lon: -46.63, country: 'Brazil', city: 'Sao Paulo' },
 };
 
-// ── Your ICS factory target ───────────────────────────────────────────────
-const TARGET = { lat: 13.08, lon: 80.27, label: "ICS Factory" };
+const TILE_CONFIG = {
+  dark: {
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    background: '#020d1c',
+    overlay: 'linear-gradient(180deg, rgba(2,13,28,0.95) 0%, transparent 100%)',
+    text: '#e2e8f0',
+    accent: '#00d2ff',
+    zoomBg: 'rgba(5,10,20,0.92)',
+    zoomBorder: 'rgba(0,210,255,0.25)',
+    zoomHover: 'rgba(0,210,255,0.15)',
+    attributionBg: 'rgba(2,6,16,0.7)',
+    popupBg: 'rgba(4,10,24,0.97)',
+    popupBorder: 'rgba(0,210,255,0.25)',
+    popupText: '#e2e8f0',
+    legendBg: 'rgba(2,8,22,0.88)',
+    legendBorder: 'rgba(255,255,255,0.08)',
+    legendText: '#9ca3af',
+    blockedBg: 'rgba(249,115,22,0.12)',
+    blockedBorder: 'rgba(249,115,22,0.4)',
+    countryLabel: '#ffffff',
+    countryShadow: '#000000',
+  },
+  light: {
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    background: '#eef4fb',
+    overlay: 'linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.14) 100%)',
+    text: '#0f172a',
+    accent: '#0284c7',
+    zoomBg: 'rgba(255,255,255,0.95)',
+    zoomBorder: 'rgba(2,132,199,0.25)',
+    zoomHover: 'rgba(2,132,199,0.12)',
+    attributionBg: 'rgba(255,255,255,0.78)',
+    popupBg: 'rgba(255,255,255,0.98)',
+    popupBorder: 'rgba(148,163,184,0.35)',
+    popupText: '#0f172a',
+    legendBg: 'rgba(255,255,255,0.9)',
+    legendBorder: 'rgba(148,163,184,0.28)',
+    legendText: '#475569',
+    blockedBg: 'rgba(249,115,22,0.14)',
+    blockedBorder: 'rgba(249,115,22,0.35)',
+    countryLabel: '#0f172a',
+    countryShadow: '#ffffff',
+  },
+};
 
-// ── Mercator projection ───────────────────────────────────────────────────
-function mercator(lat, lon, W, H) {
-  const x = ((lon + 180) / 360) * W;
-  const r = (lat * Math.PI) / 180;
-  const m = Math.log(Math.tan(Math.PI / 4 + r / 2));
-  const y = H / 2 - (W * m) / (2 * Math.PI);
-  return { x, y };
+function getGeo(ip) {
+  if (!ip) return { lat: 20, lon: 0, country: 'Unknown', city: 'Unknown' };
+  for (const [pfx, geo] of Object.entries(KNOWN)) {
+    if (ip.startsWith(pfx)) return { ...geo };
+  }
+  let h = 0;
+  for (const c of ip) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
+  return {
+    lat: (Math.abs(h) % 100) - 50,
+    lon: (Math.abs(h * 7) % 300) - 150,
+    country: 'Unknown',
+    city: ip,
+  };
 }
 
-// ── Detailed continent polygons (lat/lon pairs) ───────────────────────────
-const CONTINENTS = [
-  // North America
-  [[83,-65],[75,-90],[70,-140],[60,-138],[55,-130],[49,-125],[32,-117],[20,-105],[15,-90],[10,-84],[8,-77],[10,-75],[20,-87],[22,-98],[25,-97],[30,-96],[33,-94],[37,-76],[42,-70],[47,-53],[52,-56],[60,-64],[70,-62],[75,-73],[80,-68],[83,-65]],
-  // South America
-  [[10,-75],[2,-77],[0,-80],[-5,-81],[-15,-75],[-18,-70],[-22,-68],[-28,-70],[-33,-71],[-42,-73],[-55,-68],[-55,-64],[-52,-58],[-45,-63],[-35,-57],[-28,-48],[-20,-40],[-10,-35],[-5,-35],[0,-50],[5,-60],[8,-62],[10,-62],[10,-75]],
-  // Europe
-  [[71,28],[65,14],[60,5],[52,4],[48,2],[44,8],[41,12],[38,15],[37,22],[40,28],[44,34],[46,30],[50,30],[55,21],[58,25],[62,26],[66,26],[71,28]],
-  // Africa
-  [[38,10],[37,37],[35,42],[12,44],[5,41],[-5,40],[-15,35],[-25,33],[-35,18],[-35,26],[-28,32],[-20,44],[-10,40],[0,42],[5,42],[12,44],[15,40],[22,38],[30,32],[35,37],[38,10]],
-  // Asia (simplified)
-  [[72,28],[70,50],[68,68],[60,70],[55,68],[52,58],[45,42],[40,44],[36,36],[30,34],[22,38],[12,44],[5,41],[0,42],[10,44],[22,56],[28,68],[25,82],[20,92],[12,100],[5,100],[0,105],[5,100],[10,110],[20,110],[30,120],[38,122],[42,130],[48,135],[52,142],[55,135],[60,140],[65,142],[70,140],[72,130],[70,100],[72,80],[72,60],[72,28]],
-  // Australia
-  [[-17,122],[-20,114],[-28,114],[-35,117],[-38,145],[-38,147],[-32,153],[-25,153],[-22,150],[-15,136],[-12,136],[-12,130],[-17,122]],
-  // Greenland
-  [[83,-45],[76,-18],[70,-22],[68,-32],[70,-52],[76,-68],[82,-52],[83,-45]],
-  // Japan (simplified)
-  [[45,142],[40,140],[34,136],[31,131],[34,130],[38,141],[42,143],[45,142]],
-  // UK
-  [[58,-3],[55,-6],[51,-5],[51,1],[54,0],[58,-3]],
-  // Indonesia (simplified)
-  [[-8,115],[-5,105],[0,104],[2,108],[0,117],[-5,120],[-8,115]],
-];
-
-export default function ThreatMap({ alerts, blockedIPs = {} }) {
-  const canvasRef   = useRef(null);
-  const rafRef      = useRef(null);
-  const timeRef     = useRef(0);
-
-  // Build unique attackers from alerts
-  const attackers = useMemo(() => {
-    const map = {};
-    (alerts || []).forEach(a => {
-      const geo = IP_GEO[a.source_ip];
-      if (!geo) return;
-      const ip = a.source_ip;
-      if (!map[ip]) map[ip] = { ip, geo, count: 0, blocked: !!blockedIPs[ip], lastSeen: a.timestamp };
-      map[ip].count++;
-      map[ip].blocked = !!blockedIPs[ip];
-    });
-    return Object.values(map);
-  }, [alerts, blockedIPs]);
-
-  const topAttackers = useMemo(() =>
-    [...attackers].sort((a,b) => b.count - a.count).slice(0,8),
-  [attackers]);
+function useLeaflet() {
+  const [ready, setReady] = useState(!!window.L);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx  = canvas.getContext('2d');
-    const W    = canvas.width;
-    const H    = canvas.height;
-
-    function drawMap(t) {
-      // ── Ocean ──────────────────────────────────────────────
-      ctx.fillStyle = '#0d1b2e';
-      ctx.fillRect(0, 0, W, H);
-
-      // ── Grid lines ─────────────────────────────────────────
-      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-      ctx.lineWidth   = 0.5;
-      for (let lon = -180; lon <= 180; lon += 30) {
-        const p = mercator(0, lon, W, H);
-        ctx.beginPath(); ctx.moveTo(p.x, 0); ctx.lineTo(p.x, H); ctx.stroke();
-      }
-      for (let lat = -60; lat <= 80; lat += 30) {
-        const p = mercator(lat, 0, W, H);
-        ctx.beginPath(); ctx.moveTo(0, p.y); ctx.lineTo(W, p.y); ctx.stroke();
-      }
-
-      // ── Continents ─────────────────────────────────────────
-      CONTINENTS.forEach(pts => {
-        const proj = pts.map(([la, lo]) => mercator(la, lo, W, H));
-        ctx.beginPath();
-        ctx.moveTo(proj[0].x, proj[0].y);
-        proj.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
-        ctx.closePath();
-        ctx.fillStyle   = '#1e2d45';
-        ctx.strokeStyle = 'rgba(100,160,220,0.18)';
-        ctx.lineWidth   = 0.7;
-        ctx.fill();
-        ctx.stroke();
-      });
-
-      // ── Target heatmap glow (blue circle like Kibana) ──────
-      const tgt = mercator(TARGET.lat, TARGET.lon, W, H);
-      const pulse = 0.85 + 0.15 * Math.sin(t * 2.5);
-      const glowR = 55 * pulse;
-      const grd   = ctx.createRadialGradient(tgt.x, tgt.y, 0, tgt.x, tgt.y, glowR);
-      grd.addColorStop(0,   'rgba(0,180,255,0.45)');
-      grd.addColorStop(0.4, 'rgba(0,120,255,0.20)');
-      grd.addColorStop(1,   'rgba(0,80,255,0.00)');
-      ctx.beginPath();
-      ctx.arc(tgt.x, tgt.y, glowR, 0, Math.PI * 2);
-      ctx.fillStyle = grd;
-      ctx.fill();
-
-      // ── Pulse rings on target ──────────────────────────────
-      for (let ring = 0; ring < 3; ring++) {
-        const phase = ((t * 0.8 + ring * 0.5) % 2) / 2;
-        const r     = 10 + phase * 45;
-        const alpha = (1 - phase) * 0.6;
-        ctx.beginPath();
-        ctx.arc(tgt.x, tgt.y, r, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(0,200,255,${alpha})`;
-        ctx.lineWidth   = 1.5;
-        ctx.stroke();
-      }
-
-      // ── Target center dot ──────────────────────────────────
-      ctx.beginPath();
-      ctx.arc(tgt.x, tgt.y, 6, 0, Math.PI * 2);
-      ctx.fillStyle   = '#00d2ff';
-      ctx.shadowColor = '#00d2ff';
-      ctx.shadowBlur  = 20;
-      ctx.fill();
-      ctx.shadowBlur  = 0;
-
-      // ── Attacker dots with heatmap glow + pulse rings ──────
-      attackers.forEach(atk => {
-        const src     = mercator(atk.geo.lat, atk.geo.lon, W, H);
-        const blocked = atk.blocked;
-        const color   = blocked ? '#ef4444' : '#ff4466';
-        const glow    = blocked ? '#ef4444' : '#ff2255';
-
-        // Heatmap glow behind dot
-        const hotR = (20 + atk.count * 10) * (0.9 + 0.1 * Math.sin(t * 1.8));
-        const hotG = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, hotR);
-        hotG.addColorStop(0,   blocked ? 'rgba(239,68,68,0.45)' : 'rgba(255,50,80,0.40)');
-        hotG.addColorStop(0.5, blocked ? 'rgba(239,68,68,0.15)' : 'rgba(255,30,60,0.12)');
-        hotG.addColorStop(1,   'rgba(0,0,0,0)');
-        ctx.beginPath();
-        ctx.arc(src.x, src.y, hotR, 0, Math.PI * 2);
-        ctx.fillStyle = hotG;
-        ctx.fill();
-
-        // Pulse rings
-        for (let ring = 0; ring < 2; ring++) {
-          const phase = ((t * 1.2 + ring * 0.6 + atk.count * 0.3) % 2) / 2;
-          const r     = 6 + phase * 22;
-          const alpha = (1 - phase) * 0.7;
-          ctx.beginPath();
-          ctx.arc(src.x, src.y, r, 0, Math.PI * 2);
-          ctx.strokeStyle = `${color}${Math.floor(alpha * 255).toString(16).padStart(2,'0')}`;
-          ctx.lineWidth   = 1;
-          ctx.stroke();
-        }
-
-        // Center dot
-        ctx.beginPath();
-        ctx.arc(src.x, src.y, 5, 0, Math.PI * 2);
-        ctx.fillStyle   = color;
-        ctx.shadowColor = glow;
-        ctx.shadowBlur  = 15;
-        ctx.fill();
-        ctx.shadowBlur  = 0;
-
-        // White ring around dot
-        ctx.beginPath();
-        ctx.arc(src.x, src.y, 6, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-        ctx.lineWidth   = 1;
-        ctx.stroke();
-
-        // Country label above dot
-        ctx.font        = 'bold 9px Inter, sans-serif';
-        ctx.fillStyle   = blocked ? '#ff6666' : '#ffaaaa';
-        ctx.textAlign   = 'center';
-        ctx.textBaseline= 'bottom';
-        ctx.fillText(atk.geo.country, src.x, src.y - 9);
-      });
-
-      // ── Arc lines: attacker → target ───────────────────────
-      attackers.forEach((atk, idx) => {
-        const src  = mercator(atk.geo.lat, atk.geo.lon, W, H);
-        const arcT = ((t * 0.4 + idx * 0.25) % 1);
-
-        // Control point for curve
-        const mx   = (src.x + tgt.x) / 2;
-        const my   = (src.y + tgt.y) / 2 - Math.hypot(tgt.x - src.x, tgt.y - src.y) * 0.3;
-
-        // Draw dashed arc path
-        const steps  = 80;
-        const drawTo = Math.floor(arcT * steps);
-        for (let i = Math.max(0, drawTo - 25); i < Math.min(drawTo, steps); i++) {
-          const t0   = i / steps, t1 = (i+1) / steps;
-          const fade = (i - (drawTo - 25)) / 25;
-          const bx0  = (1-t0)*(1-t0)*src.x + 2*(1-t0)*t0*mx + t0*t0*tgt.x;
-          const by0  = (1-t0)*(1-t0)*src.y + 2*(1-t0)*t0*my + t0*t0*tgt.y;
-          const bx1  = (1-t1)*(1-t1)*src.x + 2*(1-t1)*t1*mx + t1*t1*tgt.x;
-          const by1  = (1-t1)*(1-t1)*src.y + 2*(1-t1)*t1*my + t1*t1*tgt.y;
-          ctx.beginPath();
-          ctx.moveTo(bx0, by0); ctx.lineTo(bx1, by1);
-          ctx.strokeStyle = atk.blocked
-            ? `rgba(239,68,68,${fade * 0.85})`
-            : `rgba(255,80,120,${fade * 0.70})`;
-          ctx.lineWidth   = 1.5;
-          ctx.shadowColor = atk.blocked ? '#ef4444' : '#ff4466';
-          ctx.shadowBlur  = 5;
-          ctx.stroke();
-          ctx.shadowBlur  = 0;
-        }
-
-        // Leading dot on arc
-        if (drawTo > 0 && drawTo <= steps) {
-          const headT = Math.min(drawTo, steps) / steps;
-          const hx    = (1-headT)*(1-headT)*src.x + 2*(1-headT)*headT*mx + headT*headT*tgt.x;
-          const hy    = (1-headT)*(1-headT)*src.y + 2*(1-headT)*headT*my + headT*headT*tgt.y;
-          ctx.beginPath();
-          ctx.arc(hx, hy, 3, 0, Math.PI * 2);
-          ctx.fillStyle   = atk.blocked ? '#ef4444' : '#ff6688';
-          ctx.shadowColor = atk.blocked ? '#ef4444' : '#ff4466';
-          ctx.shadowBlur  = 10;
-          ctx.fill();
-          ctx.shadowBlur  = 0;
-        }
-      });
-
-      // ── Target label ───────────────────────────────────────
-      ctx.font        = 'bold 10px Inter, sans-serif';
-      ctx.fillStyle   = '#00d2ff';
-      ctx.textAlign   = 'center';
-      ctx.textBaseline= 'bottom';
-      ctx.fillText(TARGET.label, tgt.x, tgt.y - 12);
-
-      // ── No-attack placeholder ──────────────────────────────
-      if (attackers.length === 0) {
-        ctx.font        = '13px Inter, sans-serif';
-        ctx.fillStyle   = 'rgba(100,150,200,0.4)';
-        ctx.textAlign   = 'center';
-        ctx.textBaseline= 'middle';
-        ctx.fillText('No active threats — system secure', W/2, H/2 + 40);
-      }
+    if (!document.getElementById('lf-css')) {
+      const link = document.createElement('link');
+      link.id = 'lf-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+      document.head.appendChild(link);
     }
 
-    function frame() {
-      rafRef.current = requestAnimationFrame(frame);
-      timeRef.current += 0.016;
-      drawMap(timeRef.current);
+    if (window.L) {
+      setReady(true);
+      return;
     }
-    frame();
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [attackers]);
 
-  // ── Impact color ─────────────────────────────────────────────────────────
-  const impactColor = (count) =>
-    count >= 3 ? '#ef4444' : count >= 2 ? '#f97316' : '#f59e0b';
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    script.onload = () => setReady(true);
+    document.head.appendChild(script);
+  }, []);
+
+  return ready;
+}
+
+function ensureStyles(palette) {
+  let style = document.getElementById('tm-style');
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'tm-style';
+    document.head.appendChild(style);
+  }
+
+  style.textContent = `
+    .leaflet-control-zoom a {
+      background: ${palette.zoomBg} !important;
+      color: ${palette.accent} !important;
+      border-color: ${palette.zoomBorder} !important;
+      font-weight: 800 !important;
+    }
+    .leaflet-control-zoom a:hover {
+      background: ${palette.zoomHover} !important;
+    }
+    .leaflet-control-attribution {
+      background: ${palette.attributionBg} !important;
+    }
+    .leaflet-popup-content-wrapper {
+      background: ${palette.popupBg} !important;
+      border: 1px solid ${palette.popupBorder} !important;
+      border-radius: 10px !important;
+      box-shadow: 0 8px 32px rgba(15,23,42,0.18) !important;
+      color: ${palette.popupText} !important;
+    }
+    .leaflet-popup-content {
+      margin: 12px 14px !important;
+    }
+    .leaflet-popup-tip-container {
+      display: none !important;
+    }
+    .leaflet-popup-close-button {
+      color: #64748b !important;
+      font-size: 18px !important;
+      top: 8px !important;
+      right: 10px !important;
+    }
+  `;
+}
+
+export default function ThreatMap({ alerts = [], blockedIPs = {}, theme = 'dark', height = '100%' }) {
+  const leafletReady = useLeaflet();
+  const mapDiv = useRef(null);
+  const mapRef = useRef(null);
+  const tileLayerRef = useRef(null);
+  const layersRef = useRef([]);
+  const timerRef = useRef([]);
+  const palette = TILE_CONFIG[theme] || TILE_CONFIG.dark;
+
+  const sources = useMemo(() => {
+    const sourceMap = new Map();
+    alerts.forEach((alert) => {
+      const ip = alert.source_ip;
+      if (!ip) return;
+      const geo = getGeo(ip);
+      if (!sourceMap.has(ip)) {
+        sourceMap.set(ip, {
+          ip,
+          geo,
+          severity: alert.severity,
+          attackType: alert.attack_type || alert.title || 'Attack',
+          blocked: !!blockedIPs[ip],
+          count: 1,
+        });
+      } else {
+        const entry = sourceMap.get(ip);
+        entry.count += 1;
+        entry.blocked = entry.blocked || !!blockedIPs[ip];
+      }
+    });
+    return [...sourceMap.values()];
+  }, [alerts, blockedIPs]);
+
+  const activeCount = sources.filter((source) => !source.blocked).length;
+  const blockedCount = sources.filter((source) => source.blocked).length;
+
+  useEffect(() => {
+    ensureStyles(palette);
+  }, [palette]);
+
+  useEffect(() => {
+    if (!leafletReady || !mapDiv.current || mapRef.current) return;
+    const L = window.L;
+    const map = L.map(mapDiv.current, {
+      center: [20, 10],
+      zoom: 2,
+      minZoom: 2,
+      maxZoom: 10,
+      zoomControl: true,
+      attributionControl: false,
+    });
+
+    tileLayerRef.current = L.tileLayer(palette.url, { subdomains: 'abcd', maxZoom: 19 }).addTo(map);
+    L.control.attribution({ prefix: false })
+      .addAttribution('<span style="color:#475569;font-size:8px">&copy; CARTO &copy; OSM</span>')
+      .addTo(map);
+
+    mapRef.current = map;
+
+    const refresh = () => {
+      try {
+        map.invalidateSize(false);
+      } catch {}
+    };
+
+    refresh();
+    const first = window.setTimeout(refresh, 80);
+    const second = window.setTimeout(refresh, 220);
+
+    return () => {
+      window.clearTimeout(first);
+      window.clearTimeout(second);
+      map.remove();
+      mapRef.current = null;
+      tileLayerRef.current = null;
+    };
+  }, [leafletReady, palette.url]);
+
+  useEffect(() => {
+    if (!leafletReady || !mapRef.current || !tileLayerRef.current) return;
+    tileLayerRef.current.setUrl(palette.url);
+    const map = mapRef.current;
+    const refresh = () => {
+      try {
+        map.invalidateSize(false);
+      } catch {}
+    };
+    refresh();
+    const timeoutId = window.setTimeout(refresh, 140);
+    return () => window.clearTimeout(timeoutId);
+  }, [leafletReady, palette.url, height, alerts.length]);
+
+  useEffect(() => {
+    if (!leafletReady || !mapRef.current) return;
+    const L = window.L;
+    const map = mapRef.current;
+
+    layersRef.current.forEach((layer) => {
+      try {
+        map.removeLayer(layer);
+      } catch {}
+    });
+    layersRef.current = [];
+
+    timerRef.current.forEach((id) => window.clearInterval(id));
+    timerRef.current = [];
+
+    const homeIcon = L.divIcon({
+      className: '',
+      html: `
+        <div style="position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
+          <div style="position:absolute;width:40px;height:40px;border-radius:50%;border:1.5px solid rgba(0,210,255,0.4);animation:hpulse1 2s ease-out infinite;"></div>
+          <div style="position:absolute;width:26px;height:26px;border-radius:50%;border:1.5px solid rgba(0,210,255,0.6);animation:hpulse2 2s ease-out infinite 0.4s;"></div>
+          <div style="width:12px;height:12px;border-radius:50%;background:#00d2ff;box-shadow:0 0 14px #00d2ff,0 0 28px #00d2ff88;z-index:2;"></div>
+        </div>
+        <style>
+          @keyframes hpulse1 { 0% { transform: scale(1); opacity: 0.7; } 100% { transform: scale(1.8); opacity: 0; } }
+          @keyframes hpulse2 { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(1.6); opacity: 0; } }
+          @keyframes apulse { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(2.2); opacity: 0; } }
+          @keyframes ablink { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(1.2); } }
+        </style>
+      `,
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
+      popupAnchor: [0, -20],
+    });
+
+    const homeMarker = L.marker([HOME.lat, HOME.lon], { icon: homeIcon, zIndexOffset: 3000 })
+      .addTo(map)
+      .bindPopup(`
+        <div style="font-family:monospace;padding:4px;min-width:170px;">
+          <div style="color:${palette.accent};font-weight:800;font-size:13px;margin-bottom:6px;">${HOME.label}</div>
+          <div style="color:#64748b;font-size:10px;">PLC-01 � Chennai, Tamil Nadu</div>
+          <div style="color:#64748b;font-size:10px;margin-top:2px;">13.08�N, 80.27�E</div>
+          <div style="margin-top:8px;padding:5px 8px;background:rgba(0,210,255,0.1);border:1px solid rgba(0,210,255,0.3);border-radius:5px;color:${palette.accent};font-size:10px;text-align:center;font-weight:700;">
+            SENSOR ACTIVE
+          </div>
+        </div>
+      `);
+    layersRef.current.push(homeMarker);
+
+    const labelIcon = L.divIcon({
+      className: '',
+      html: `<div style="color:${palette.accent};font-size:10px;font-weight:700;font-family:monospace;white-space:nowrap;text-shadow:0 0 8px ${palette.accent},0 1px 3px rgba(0,0,0,0.4);margin-top:4px;margin-left:-10px;">ICS Factory</div>`,
+      iconSize: [80, 16],
+      iconAnchor: [10, 0],
+    });
+    layersRef.current.push(L.marker([HOME.lat, HOME.lon], { icon: labelIcon, zIndexOffset: 2999 }).addTo(map));
+
+    sources.forEach((source) => {
+      const isBlocked = source.blocked;
+      const color = isBlocked ? '#f97316' : '#ef4444';
+      const glow = isBlocked ? '#f9731688' : '#ef444488';
+      const size = source.severity === 'CRITICAL' ? 18 : 14;
+
+      const dotIcon = L.divIcon({
+        className: '',
+        html: `
+          <div style="position:relative;width:${size + 12}px;height:${size + 12}px;display:flex;align-items:center;justify-content:center;">
+            <div style="position:absolute;width:${size + 12}px;height:${size + 12}px;border-radius:50%;background:${color}22;animation:apulse 1.6s ease-out infinite;"></div>
+            <div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid rgba(255,255,255,0.35);box-shadow:0 0 10px ${color},0 0 20px ${glow};z-index:2;cursor:pointer;${isBlocked ? '' : 'animation:ablink 1.4s ease-in-out infinite;'}"></div>
+          </div>
+        `,
+        iconSize: [size + 12, size + 12],
+        iconAnchor: [(size + 12) / 2, (size + 12) / 2],
+        popupAnchor: [0, -(size + 12) / 2],
+      });
+
+      const marker = L.marker([source.geo.lat, source.geo.lon], { icon: dotIcon, zIndexOffset: 2000 })
+        .addTo(map)
+        .bindPopup(`
+          <div style="font-family:monospace;padding:4px;min-width:190px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <div style="width:10px;height:10px;border-radius:50%;background:${color};box-shadow:0 0 8px ${color};flex-shrink:0;"></div>
+              <div>
+                <div style="color:${color};font-weight:800;font-size:13px;">${source.geo.country}</div>
+                <div style="color:#64748b;font-size:10px;">${source.geo.city}</div>
+              </div>
+              ${isBlocked ? '<span style="margin-left:auto;background:rgba(249,115,22,0.15);color:#f97316;border:1px solid rgba(249,115,22,0.4);border-radius:4px;padding:1px 7px;font-size:9px;font-weight:800;">BLOCKED</span>' : '<span style="margin-left:auto;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);border-radius:4px;padding:1px 7px;font-size:9px;font-weight:800;">ACTIVE</span>'}
+            </div>
+            <div style="border-top:1px solid rgba(148,163,184,0.18);padding-top:8px;display:flex;flex-direction:column;gap:5px;">
+              <div style="display:flex;justify-content:space-between;font-size:10px;">
+                <span style="color:#64748b;">IP</span>
+                <span style="color:${palette.accent};font-weight:700;">${source.ip}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:10px;gap:8px;">
+                <span style="color:#64748b;">Attack</span>
+                <span style="color:${palette.popupText};font-weight:600;text-align:right;">${source.attackType.substring(0, 24)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:10px;">
+                <span style="color:#64748b;">Packets</span>
+                <span style="color:${palette.popupText};font-weight:600;">x${source.count}</span>
+              </div>
+            </div>
+            <div style="margin-top:8px;padding:5px 8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:5px;color:#f87171;font-size:9px;text-align:center;">
+              Targeting PLC-01 � Chennai � Port 502
+            </div>
+          </div>
+        `);
+      layersRef.current.push(marker);
+
+      const countryLabel = L.divIcon({
+        className: '',
+        html: `<div style="color:${palette.countryLabel};font-size:9px;font-weight:700;font-family:monospace;white-space:nowrap;text-shadow:0 0 6px ${color},0 1px 3px ${palette.countryShadow};margin-top:-2px;margin-left:-4px;">${source.geo.country}</div>`,
+        iconSize: [60, 12],
+        iconAnchor: [4, 0],
+      });
+      layersRef.current.push(L.marker([source.geo.lat + 2.5, source.geo.lon], { icon: countryLabel, zIndexOffset: 1999 }).addTo(map));
+
+      const arcPoints = [];
+      for (let i = 0; i <= 60; i += 1) {
+        const t = i / 60;
+        arcPoints.push([
+          source.geo.lat + (HOME.lat - source.geo.lat) * t,
+          source.geo.lon + (HOME.lon - source.geo.lon) * t,
+        ]);
+      }
+
+      const arc = L.polyline(arcPoints, {
+        color,
+        weight: 1.6,
+        opacity: isBlocked ? 0.35 : 0.65,
+        dashArray: isBlocked ? '4 8' : '7 10',
+      }).addTo(map);
+      layersRef.current.push(arc);
+
+      if (!isBlocked) {
+        const packetIcon = L.divIcon({
+          className: '',
+          html: `<div style="width:7px;height:7px;border-radius:50%;background:${color};box-shadow:0 0 8px ${color};"></div>`,
+          iconSize: [7, 7],
+          iconAnchor: [3, 3],
+        });
+        let step = Math.floor(Math.random() * 60);
+        const packet = L.marker(arcPoints[0], { icon: packetIcon, zIndexOffset: 1500 }).addTo(map);
+        layersRef.current.push(packet);
+        const intervalId = window.setInterval(() => {
+          step = (step + 1) % 61;
+          packet.setLatLng(arcPoints[step] || arcPoints[0]);
+        }, 35);
+        timerRef.current.push(intervalId);
+      }
+    });
+
+    const refresh = () => {
+      try {
+        map.invalidateSize(false);
+      } catch {}
+    };
+    refresh();
+    const timeoutId = window.setTimeout(refresh, 120);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      timerRef.current.forEach((id) => window.clearInterval(id));
+      timerRef.current = [];
+    };
+  }, [leafletReady, palette, sources]);
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:0, borderRadius:10, overflow:'hidden', border:'1px solid rgba(100,160,220,0.15)' }}>
-
-      {/* ── MAP CANVAS ── */}
-      <div style={{ position:'relative' }}>
-        <canvas
-          ref={canvasRef}
-          width={880}
-          height={440}
-          style={{ width:'100%', height:'auto', display:'block' }}
-        />
-
-        {/* Live badge */}
-        <div style={{ position:'absolute', top:10, left:12, display:'flex', alignItems:'center', gap:6, background:'rgba(0,0,0,0.55)', borderRadius:6, padding:'4px 10px', backdropFilter:'blur(4px)' }}>
-          <span style={{ width:7, height:7, borderRadius:'50%', background:'#ef4444', display:'inline-block', boxShadow:'0 0 8px #ef4444' }}/>
-          <span style={{ color:'#e2e8f0', fontSize:11, fontWeight:700, letterSpacing:0.5 }}>LIVE THREAT MAP</span>
+    <div
+      style={{
+        width: '100%',
+        height,
+        position: 'relative',
+        borderRadius: 10,
+        overflow: 'hidden',
+        background: palette.background,
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px 14px',
+          background: palette.overlay,
+          pointerEvents: 'none',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: activeCount > 0 ? '#ef4444' : '#10b981',
+              boxShadow: `0 0 8px ${activeCount > 0 ? '#ef4444' : '#10b981'}`,
+            }}
+          />
+          <span style={{ color: palette.text, fontSize: 11, fontWeight: 700, letterSpacing: '1px' }}>
+            LIVE THREAT MAP
+          </span>
         </div>
 
-        {/* Legend */}
-        <div style={{ position:'absolute', bottom:10, right:12, display:'flex', flexDirection:'column', gap:5, background:'rgba(0,0,0,0.55)', borderRadius:8, padding:'8px 12px', backdropFilter:'blur(4px)' }}>
-          {[['#ff4466','Active Attack'],['#ef4444','Blocked IP'],['#00d2ff','ICS Target']].map(([c,l])=>(
-            <div key={l} style={{ display:'flex', alignItems:'center', gap:6 }}>
-              <span style={{ width:8, height:8, borderRadius:'50%', background:c, display:'inline-block', boxShadow:`0 0 6px ${c}` }}/>
-              <span style={{ color:'#9ca3af', fontSize:10 }}>{l}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Attack count badge */}
-        {attackers.length > 0 && (
-          <div style={{ position:'absolute', top:10, right:12, background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:6, padding:'4px 12px' }}>
-            <span style={{ color:'#ef4444', fontSize:12, fontWeight:800 }}>{attackers.length} ACTIVE SOURCE{attackers.length>1?'S':''}</span>
+        {activeCount > 0 && (
+          <div
+            style={{
+              background: 'rgba(239,68,68,0.15)',
+              border: '1px solid rgba(239,68,68,0.5)',
+              borderRadius: 6,
+              padding: '4px 12px',
+              color: '#ef4444',
+              fontSize: 11,
+              fontWeight: 800,
+              letterSpacing: '0.5px',
+            }}
+          >
+            {activeCount} ACTIVE SOURCE{activeCount > 1 ? 'S' : ''}
           </div>
         )}
       </div>
 
-      {/* ── TOP ATTACKERS TABLE ── */}
-      <div style={{ background:'rgba(5,12,25,0.9)', borderTop:'1px solid rgba(100,160,220,0.1)' }}>
-        <div style={{ padding:'10px 16px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
-          <span style={{ color:'#e2e8f0', fontWeight:700, fontSize:13 }}>Top Attacker IPs</span>
-          <div style={{ display:'flex', gap:16, fontSize:11 }}>
-            <span style={{ color:'#6b7280' }}>{attackers.filter(a=>!a.blocked).length} active</span>
-            <span style={{ color:'#ef4444' }}>{attackers.filter(a=>a.blocked).length} blocked</span>
-          </div>
-        </div>
+      <div ref={mapDiv} style={{ width: '100%', height: '100%' }} />
 
-        <table style={{ width:'100%', borderCollapse:'collapse' }}>
-          <thead>
-            <tr style={{ background:'rgba(255,255,255,0.02)' }}>
-              {['Impact','IP Address','Country','City','Region','Last Seen','Status'].map(h=>(
-                <th key={h} style={{ padding:'7px 14px', textAlign:'left', fontSize:10, color:'#4b5563', fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, borderBottom:'1px solid rgba(255,255,255,0.04)' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {topAttackers.length === 0 ? (
-              <tr><td colSpan={7} style={{ padding:'20px', textAlign:'center', color:'#374151', fontSize:12 }}>No attackers detected — system secure</td></tr>
-            ) : topAttackers.map((atk, i) => (
-              <tr key={i} style={{ borderBottom:'1px solid rgba(255,255,255,0.025)', background: atk.blocked ? 'rgba(239,68,68,0.04)' : i%2===0 ? 'rgba(255,255,255,0.01)' : 'transparent', transition:'background 0.2s' }}>
-                <td style={{ padding:'8px 14px' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                    <div style={{ width:3, height:28, borderRadius:2, background: impactColor(atk.count) }}/>
-                    <span style={{ background:`${impactColor(atk.count)}22`, color:impactColor(atk.count), border:`1px solid ${impactColor(atk.count)}44`, borderRadius:4, padding:'2px 7px', fontSize:10, fontWeight:700 }}>
-                      {atk.count >= 3 ? 'HIGH' : atk.count >= 2 ? 'MED' : 'LOW'}
-                    </span>
-                  </div>
-                </td>
-                <td style={{ padding:'8px 14px', fontFamily:'monospace', fontSize:12, color: atk.blocked ? '#ef4444' : '#e2e8f0', fontWeight: atk.blocked ? 700 : 400 }}>
-                  {atk.blocked && <span style={{ marginRight:5 }}>🚫</span>}{atk.ip}
-                </td>
-                <td style={{ padding:'8px 14px', fontSize:12, color:'#9ca3af' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                    <span style={{ width:7, height:7, borderRadius:'50%', display:'inline-block', background: atk.blocked ? '#ef4444' : '#ff4466', boxShadow:`0 0 5px ${atk.blocked ? '#ef4444' : '#ff4466'}` }}/>
-                    {atk.geo.country}
-                  </div>
-                </td>
-                <td style={{ padding:'8px 14px', fontSize:12, color:'#6b7280' }}>{atk.geo.city}</td>
-                <td style={{ padding:'8px 14px', fontSize:12, color:'#6b7280' }}>{atk.geo.region}</td>
-                <td style={{ padding:'8px 14px', fontSize:11, color:'#4b5563', fontFamily:'monospace' }}>
-                  {new Date(atk.lastSeen).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
-                </td>
-                <td style={{ padding:'8px 14px' }}>
-                  <span style={{ fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:4, background: atk.blocked ? 'rgba(239,68,68,0.15)' : 'rgba(255,70,100,0.12)', color: atk.blocked ? '#ef4444' : '#ff6688', border:`1px solid ${atk.blocked ? '#ef444430' : '#ff446830'}` }}>
-                    {atk.blocked ? '🔒 BLOCKED' : '⚡ ACTIVE'}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {!leafletReady && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: palette.background,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999,
+          }}
+        >
+          <span style={{ color: palette.accent, fontSize: 12, fontWeight: 700 }}>Loading map...</span>
+        </div>
+      )}
+
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 12,
+          right: 12,
+          zIndex: 1000,
+          background: palette.legendBg,
+          border: `1px solid ${palette.legendBorder}`,
+          borderRadius: 8,
+          padding: '8px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          pointerEvents: 'none',
+        }}
+      >
+        {[
+          ['#ef4444', 'Active Attack'],
+          ['#f97316', 'Blocked IP'],
+          ['#00d2ff', 'ICS Target'],
+        ].map(([color, label]) => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <div
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: color,
+                boxShadow: `0 0 6px ${color}`,
+              }}
+            />
+            <span style={{ color: palette.legendText, fontSize: 10 }}>{label}</span>
+          </div>
+        ))}
       </div>
+
+      {blockedCount > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 12,
+            left: 12,
+            zIndex: 1000,
+            background: palette.blockedBg,
+            border: `1px solid ${palette.blockedBorder}`,
+            borderRadius: 6,
+            padding: '4px 10px',
+            color: '#f97316',
+            fontSize: 10,
+            fontWeight: 700,
+          }}
+        >
+          {blockedCount} IP{blockedCount > 1 ? 's' : ''} blocked
+        </div>
+      )}
     </div>
   );
 }

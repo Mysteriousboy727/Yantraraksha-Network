@@ -91,7 +91,7 @@ export default function LoginPage({ onLogin }) {
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      background: '#020d1c',
+      background: 'var(--bg-black)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontFamily: "'Courier New', monospace",
       overflow: 'hidden',
@@ -111,8 +111,8 @@ export default function LoginPage({ onLogin }) {
       <div style={{
         position: 'relative', zIndex: 10,
         width: 420, maxWidth: '90vw',
-        background: 'rgba(4,12,28,0.95)',
-        border: '1px solid rgba(0,210,255,0.35)',
+        background: 'var(--card-bg)',
+        border: '1px solid var(--card-border)',
         borderRadius: 16,
         padding: '44px 40px 40px',
         boxShadow: '0 0 80px rgba(0,210,255,0.1), inset 0 1px 0 rgba(0,210,255,0.1)',
@@ -127,7 +127,7 @@ export default function LoginPage({ onLogin }) {
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <div style={{ fontSize: 44, lineHeight: 1, marginBottom: 12 }}>🛡️</div>
           <div style={{ color: '#00d2ff', fontWeight: 900, fontSize: 20, letterSpacing: 5 }}>
-            SENTINEL OS
+            Yantraraksha-Network
           </div>
           <div style={{ color: '#1e3a5f', fontSize: 10, letterSpacing: 3, marginTop: 6 }}>
             ICS / SCADA SECURITY PLATFORM
@@ -159,10 +159,10 @@ export default function LoginPage({ onLogin }) {
               autoFocus
               style={{
                 width: '100%', boxSizing: 'border-box',
-                background: 'rgba(0,210,255,0.03)',
-                border: '1px solid rgba(0,210,255,0.25)',
+                background: 'var(--bg-main)',
+                border: '1px solid var(--card-border)',
                 borderRadius: 8, padding: '12px 16px',
-                color: '#e2e8f0', fontSize: 14,
+                color: 'var(--text-main)', fontSize: 14,
                 outline: 'none', fontFamily: 'inherit',
               }}
               onFocus={e  => e.target.style.borderColor = '#00d2ff'}
@@ -183,10 +183,10 @@ export default function LoginPage({ onLogin }) {
               autoComplete="current-password"
               style={{
                 width: '100%', boxSizing: 'border-box',
-                background: 'rgba(0,210,255,0.03)',
-                border: '1px solid rgba(0,210,255,0.25)',
+                background: 'var(--bg-main)',
+                border: '1px solid var(--card-border)',
                 borderRadius: 8, padding: '12px 16px',
-                color: '#e2e8f0', fontSize: 14,
+                color: 'var(--text-main)', fontSize: 14,
                 outline: 'none', fontFamily: 'inherit',
               }}
               onFocus={e  => e.target.style.borderColor = '#00d2ff'}

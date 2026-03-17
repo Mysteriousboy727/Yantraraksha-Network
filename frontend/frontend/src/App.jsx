@@ -1,7 +1,6 @@
 // src/App.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import apiClient from './services/apiClient';
-import AttackGlobe from './AttackGlobe';
 import ThreatMap from './ThreatMap';
 import './App.css';
 import LoginPage from './LoginPage';
@@ -82,7 +81,7 @@ function useNmapScan(enabled = true) {
 // ==========================================
 // NMAP CANVAS GRAPH
 // ==========================================
-function NmapTrafficGraph({ trafficHistory, scanData, scanning, isUnderAttack, height = 120 }) {
+function NmapTrafficGraph({ trafficHistory, scanData, scanning, isUnderAttack, theme = 'dark', height = 120 }) {
   const canvasRef = useRef(null);
   const tRef      = useRef(0);
   const rafRef    = useRef(null);
@@ -97,9 +96,13 @@ function NmapTrafficGraph({ trafficHistory, scanData, scanning, isUnderAttack, h
       tRef.current  += 0.022;
       const t = tRef.current;
       const W = canvas.width, H = canvas.height;
+      const isLightTheme = theme === 'light';
+      const chartBg = isLightTheme ? '#f8fbff' : '#020d1c';
+      const gridStroke = isLightTheme ? 'rgba(15,23,42,0.08)' : 'rgba(0,210,255,0.06)';
+      const liveColor = isUnderAttack ? '#ef4444' : isLightTheme ? '#0284c7' : '#00d2ff';
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#020d1c'; ctx.fillRect(0, 0, W, H);
-      ctx.strokeStyle = 'rgba(0,210,255,0.06)'; ctx.lineWidth = 0.8;
+      ctx.fillStyle = chartBg; ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = gridStroke; ctx.lineWidth = 0.8;
       for (let i = 1; i < 5; i++) { ctx.beginPath(); ctx.moveTo(0,(H/5)*i); ctx.lineTo(W,(H/5)*i); ctx.stroke(); }
       const history = histRef.current || [];
       const steps = 80, points = [];
@@ -112,10 +115,10 @@ function NmapTrafficGraph({ trafficHistory, scanData, scanning, isUnderAttack, h
         const y = H - 12 - ((Math.max(minV, Math.min(maxV, wave)) - minV) / (maxV - minV)) * (H - 28);
         points.push({ x, y });
       }
-      const base = isUnderAttack ? '#ef4444' : '#00d2ff';
+      const base = liveColor;
       const fill = ctx.createLinearGradient(0, 0, 0, H);
-      fill.addColorStop(0, isUnderAttack ? 'rgba(239,68,68,0.22)' : 'rgba(0,210,255,0.20)');
-      fill.addColorStop(0.6, isUnderAttack ? 'rgba(239,68,68,0.06)' : 'rgba(0,130,255,0.06)');
+      fill.addColorStop(0, isUnderAttack ? 'rgba(239,68,68,0.22)' : isLightTheme ? 'rgba(2,132,199,0.20)' : 'rgba(0,210,255,0.20)');
+      fill.addColorStop(0.6, isUnderAttack ? 'rgba(239,68,68,0.06)' : isLightTheme ? 'rgba(29,78,216,0.07)' : 'rgba(0,130,255,0.06)');
       fill.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.beginPath(); ctx.moveTo(points[0].x, H);
       points.forEach(p => ctx.lineTo(p.x, p.y));
@@ -133,12 +136,12 @@ function NmapTrafficGraph({ trafficHistory, scanData, scanning, isUnderAttack, h
     }
     draw();
     return () => cancelAnimationFrame(rafRef.current);
-  }, [isUnderAttack]);
+  }, [isUnderAttack, theme]);
   return (
     <div style={{ position:'relative', width:'100%', height }}>
       <canvas ref={canvasRef} width={800} height={height} style={{ width:'100%', height:'100%' }} />
-      <div style={{ position:'absolute', top:6, right:8, display:'flex', alignItems:'center', gap:5, fontSize:10, color: scanning ? '#f59e0b' : '#00d2ff' }}>
-        <span style={{ width:6, height:6, borderRadius:'50%', display:'inline-block', background: scanning ? '#f59e0b' : '#00d2ff', boxShadow:`0 0 6px ${scanning ? '#f59e0b' : '#00d2ff'}` }} />
+      <div style={{ position:'absolute', top:6, right:8, display:'flex', alignItems:'center', gap:5, fontSize:10, color: scanning ? '#f59e0b' : theme === 'light' ? '#0284c7' : '#00d2ff' }}>
+        <span style={{ width:6, height:6, borderRadius:'50%', display:'inline-block', background: scanning ? '#f59e0b' : theme === 'light' ? '#0284c7' : '#00d2ff', boxShadow:`0 0 6px ${scanning ? '#f59e0b' : theme === 'light' ? '#0284c7' : '#00d2ff'}` }} />
         {scanning ? 'Scanning...' : 'Nmap Live'}
       </div>
       {scanData?.rogue_count > 0 && (
@@ -153,20 +156,24 @@ function NmapTrafficGraph({ trafficHistory, scanData, scanning, isUnderAttack, h
 // ==========================================
 // NMAP DONUT
 // ==========================================
-function NmapDonut({ scanData, scanning, isUnderAttack }) {
+function NmapDonut({ scanData, scanning, isUnderAttack, theme = 'dark' }) {
   const total   = scanData?.total_found ?? 0;
   const trusted = scanData?.hosts?.filter(h => h.status === 'TRUSTED').length ?? 0;
   const rogue   = scanData?.rogue_count ?? 0;
   const pct     = total > 0 ? (trusted / total) * 100 : 100;
-  const color   = rogue > 0 ? '#ef4444' : isUnderAttack ? '#f59e0b' : '#00d2ff';
+  const color   = theme === 'light'
+    ? (rogue > 0 ? '#dc2626' : isUnderAttack ? '#d97706' : '#0284c7')
+    : (rogue > 0 ? '#ef4444' : isUnderAttack ? '#f59e0b' : '#00d2ff');
+  const trackColor = theme === 'light' ? '#c8d6e8' : 'var(--card-border)';
+  const textColor = theme === 'light' ? '#0f172a' : '#ffffff';
   return (
     <div className="traffic-donut-wrapper">
       <div className="donut-outer-ring" style={{ borderColor: color }} />
-      <div className="traffic-donut" style={{ background:`conic-gradient(${color} 0% ${pct}%, var(--card-border) ${pct}%)`, boxShadow:`0 0 18px ${color}55` }}>
+      <div className="traffic-donut" style={{ background:`conic-gradient(${color} 0% ${pct}%, ${trackColor} ${pct}%)`, boxShadow:`0 0 18px ${color}55` }}>
         <div className="donut-inner">
-          <span className="d-num text-white" style={{ fontSize:14, color }}>{scanning ? '⟳' : total}</span>
+          <span className="d-num" style={{ fontSize:16, color:textColor, lineHeight:1 }}>{scanning ? '⟳' : total}</span>
           <span className="d-text" style={{ color, fontSize:9, fontWeight:700 }}>{rogue > 0 ? 'ROGUE!' : 'Operational'}</span>
-          {rogue > 0 && <span style={{ fontSize:8, color:'#ef4444', marginTop:2 }}>{rogue} rogue</span>}
+          {rogue > 0 && <span style={{ fontSize:8, color:'#dc2626', marginTop:2 }}>{rogue} rogue</span>}
         </div>
       </div>
     </div>
@@ -224,10 +231,12 @@ const NODES = [
 ];
 const CX=340, CY=237, THREAT={label:"45.X.X.X",x:578,y:66}, SPEED=0.012, TRAIL=Math.PI*0.55;
 
-function ScadaTopology({ isUnderAttack }) {
+function ScadaTopology({ isUnderAttack, theme = 'dark' }) {
   const canvasRef = useRef(null);
   const attackRef = useRef(isUnderAttack);
+  const themeRef = useRef(theme);
   useEffect(() => { attackRef.current = isUnderAttack; }, [isUnderAttack]);
+  useEffect(() => { themeRef.current = theme; }, [theme]);
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -239,9 +248,10 @@ function ScadaTopology({ isUnderAttack }) {
     let sweepAngle=-Math.PI, rafId;
     const angleDiff=(a,b)=>((b-a)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
     function draw(){
-      const atk=attackRef.current;
-      ctx.clearRect(0,0,680,480); ctx.fillStyle="#050a14"; ctx.fillRect(0,0,680,480);
-      ctx.beginPath();ctx.arc(CX,CY,ORBIT_R,0,Math.PI*2);ctx.strokeStyle="rgba(0,210,255,0.05)";ctx.lineWidth=1;ctx.stroke();
+      const atk = attackRef.current;
+      const light = themeRef.current === 'light';
+      ctx.clearRect(0,0,680,480); ctx.fillStyle = light ? '#f0f6ff' : '#050a14'; ctx.fillRect(0,0,680,480);
+      ctx.beginPath();ctx.arc(CX,CY,ORBIT_R,0,Math.PI*2);ctx.strokeStyle = light ? 'rgba(0,100,200,0.12)' : 'rgba(0,210,255,0.05)';ctx.lineWidth=1;ctx.stroke();
       nodes.forEach(n=>{const d=angleDiff(sweepAngle,n.angle);if(d<0.18||d>2*Math.PI-0.18)n.glow=1.0;else n.glow=Math.max(0,n.glow-0.025);});
       const tgtNode=nodes.find(n=>n.isTarget); const tG=atk?tgtNode.glow:0;
       for(let i=0;i<40;i++){const t=i/40;const a0=sweepAngle-TRAIL*(1-t);const a1=sweepAngle-TRAIL*(1-t-1/40);const al=t*0.35;const r=tG>0.1?`rgba(255,${Math.floor(50*(1-tG))},0,${al})`:`rgba(0,180,255,${al})`;ctx.beginPath();ctx.moveTo(CX,CY);ctx.arc(CX,CY,ORBIT_R,a0,a1);ctx.closePath();ctx.fillStyle=r;ctx.fill();}
@@ -249,13 +259,13 @@ function ScadaTopology({ isUnderAttack }) {
       ctx.beginPath();ctx.moveTo(CX,CY);ctx.lineTo(CX+Math.cos(sweepAngle)*ORBIT_R,CY+Math.sin(sweepAngle)*ORBIT_R);ctx.strokeStyle=sc;ctx.lineWidth=2;ctx.shadowColor=sc;ctx.shadowBlur=10;ctx.stroke();ctx.shadowBlur=0;
       nodes.forEach(n=>{
         const hit=atk&&n.isTarget;
-        ctx.beginPath();ctx.moveTo(CX,CY);ctx.lineTo(n.x,n.y);ctx.strokeStyle=n.glow>0.05?(hit?`rgba(255,60,0,${0.3+n.glow*0.7})`:`rgba(0,200,255,${0.3+n.glow*0.7})`):"rgba(0,150,255,0.1)";ctx.lineWidth=n.glow>0.05?1.5:1;ctx.stroke();
+        ctx.beginPath();ctx.moveTo(CX,CY);ctx.lineTo(n.x,n.y);ctx.strokeStyle=n.glow>0.05?(hit?`rgba(255,60,0,${0.3+n.glow*0.7})`:`rgba(0,200,255,${0.3+n.glow*0.7})`):(light ? 'rgba(0,100,200,0.12)' : 'rgba(0,150,255,0.1)');ctx.lineWidth=n.glow>0.05?1.5:1;ctx.stroke();
         if(atk&&n.isTarget&&n.glow>0.05){ctx.beginPath();ctx.moveTo(n.x,n.y);ctx.lineTo(THREAT.x,THREAT.y);ctx.strokeStyle=`rgba(255,40,0,${n.glow*0.9})`;ctx.lineWidth=2;ctx.setLineDash([8,5]);ctx.shadowColor="#ff2200";ctx.shadowBlur=12*n.glow;ctx.stroke();ctx.setLineDash([]);ctx.shadowBlur=0;}
         const gc=hit?"#ff3300":"#00d2ff";
-        ctx.beginPath();ctx.roundRect(n.x-32,n.y-18,64,36,6);ctx.fillStyle=n.glow>0.05?(hit?`rgba(80,0,0,${0.5+n.glow*0.5})`:`rgba(0,40,100,${0.6+n.glow*0.4})`):"rgba(0,50,150,0.1)";ctx.shadowColor=n.glow>0.05?gc:"transparent";ctx.shadowBlur=n.glow>0.05?18*n.glow:0;ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=n.glow>0.05?gc:"rgba(0,150,255,0.2)";ctx.lineWidth=n.glow>0.05?1.5:0.8;ctx.stroke();
-        ctx.font="14px Inter,sans-serif";ctx.textAlign="center";ctx.fillStyle="#fff";ctx.fillText(n.icon,n.x,n.y+2);ctx.font="10px Inter,sans-serif";ctx.fillStyle=n.glow>0.05?(hit?"#ff8866":"#88ccff"):"#8b949e";ctx.fillText(n.label,n.x,n.y+30);
+        ctx.beginPath();ctx.roundRect(n.x-32,n.y-18,64,36,6);ctx.fillStyle=n.glow>0.05?(hit?`rgba(80,0,0,${0.5+n.glow*0.5})`:`rgba(0,40,100,${0.6+n.glow*0.4})`):(light ? 'rgba(0,80,200,0.08)' : 'rgba(0,50,150,0.1)');ctx.shadowColor=n.glow>0.05?gc:"transparent";ctx.shadowBlur=n.glow>0.05?18*n.glow:0;ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=n.glow>0.05?gc:(light ? 'rgba(0,100,200,0.25)' : 'rgba(0,150,255,0.2)');ctx.lineWidth=n.glow>0.05?1.5:0.8;ctx.stroke();
+        ctx.font="14px Inter,sans-serif";ctx.textAlign="center";ctx.fillStyle=light ? '#1d4ed8' : '#fff';ctx.fillText(n.icon,n.x,n.y+2);ctx.font="10px Inter,sans-serif";ctx.fillStyle=n.glow>0.05?(hit?"#ff8866":"#88ccff"):(light ? '#334155' : '#8b949e');ctx.fillText(n.label,n.x,n.y+30);
       });
-      ctx.beginPath();ctx.roundRect(CX-70,CY-27,140,54,8);ctx.fillStyle="#0044ff";ctx.shadowColor="#0044ff";ctx.shadowBlur=20;ctx.fill();ctx.shadowBlur=0;ctx.fillStyle="#fff";ctx.font="bold 12px Inter,sans-serif";ctx.textAlign="center";ctx.fillText("SCADA SERVER",CX,CY+4);
+      ctx.beginPath();ctx.roundRect(CX-70,CY-27,140,54,8);ctx.fillStyle=light ? '#ffffff' : '#0044ff';ctx.shadowColor=light ? 'rgba(37,99,235,0.22)' : '#0044ff';ctx.shadowBlur=20;ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=light ? 'rgba(37,99,235,0.35)' : 'transparent';ctx.lineWidth=light ? 1.2 : 0;if(light)ctx.stroke();ctx.fillStyle=light ? '#1d4ed8' : '#fff';ctx.font="bold 12px Inter,sans-serif";ctx.textAlign="center";ctx.fillText("SCADA SERVER",CX,CY+4);
       if(atk){const tg=tgtNode.glow;ctx.beginPath();ctx.roundRect(THREAT.x-50,THREAT.y-26,100,48,8);ctx.fillStyle=tg>0.05?`rgba(100,0,0,${0.5+tg*0.5})`:"#1a0000";ctx.shadowColor="#ff2200";ctx.shadowBlur=tg>0.05?24*tg:6;ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=tg>0.05?`rgba(255,50,0,${0.5+tg*0.5})`:"#660000";ctx.lineWidth=tg>0.05?2:1;ctx.stroke();ctx.font="bold 13px Inter";ctx.textAlign="center";ctx.fillStyle=tg>0.05?`rgba(255,100,80,${0.7+tg*0.3})`:"#aa3333";ctx.fillText("☠",THREAT.x,THREAT.y-6);ctx.font="11px Inter";ctx.fillStyle=tg>0.05?`rgba(255,120,100,${0.7+tg*0.3})`:"#882222";ctx.fillText("45.X.X.X",THREAT.x,THREAT.y+12);}
       sweepAngle+=SPEED;if(sweepAngle>Math.PI*2)sweepAngle-=Math.PI*2;
       rafId=requestAnimationFrame(draw);
@@ -265,7 +275,7 @@ function ScadaTopology({ isUnderAttack }) {
   }, []);
   return (
     <div style={{width:'100%',height:'100%',borderRadius:10,overflow:"hidden",position:'relative'}}>
-      <div style={{position:'absolute',top:'15px',left:'15px',color:'#e2e8f0',fontSize:'14px',fontWeight:'bold',zIndex:10}}>⬩⬩ LIVE NETWORK TOPOLOGY</div>
+      <div style={{position:'absolute',top:'15px',left:'15px',color:theme === 'light' ? '#1e3a5f' : '#e2e8f0',fontSize:'14px',fontWeight:'bold',zIndex:10}}>⬩⬩ LIVE NETWORK TOPOLOGY</div>
       <canvas ref={canvasRef} width={680} height={480} style={{width:"100%",height:"100%",objectFit:"contain",display:"block"}} />
     </div>
   );
@@ -758,7 +768,7 @@ function App() {
       <aside className="sidebar">
         <div className="sidebar-logo">
           <span className="logo-shield text-cyan">🛡️</span>
-          <h2>SENTINEL <span className="text-cyan">OS</span></h2>
+          <h2>Yantraraksha <span className="text-cyan">Network</span></h2>
         </div>
         <ul className="sidebar-menu">
           {[
@@ -871,10 +881,10 @@ function App() {
                   <div className="y-axis"><span>500</span><span>400</span><span>300</span><span>200</span><span>100</span><span>000</span></div>
                   <div className="traffic-graph-area overflow-hidden" style={{position:'relative'}}>
                     <div className="bg-grid-lines"><div className="h-line"/><div className="h-line"/><div className="h-line"/><div className="h-line"/><div className="h-line"/></div>
-                    <NmapTrafficGraph trafficHistory={trafficHistory} scanData={scanData} scanning={scanning} isUnderAttack={isUnderAttack} height={120} />
+                    <NmapTrafficGraph trafficHistory={trafficHistory} scanData={scanData} scanning={scanning} isUnderAttack={isUnderAttack} theme={theme} height={120} />
                   </div>
                 </div>
-                <NmapDonut scanData={scanData} scanning={scanning} isUnderAttack={isUnderAttack} />
+                <NmapDonut scanData={scanData} scanning={scanning} isUnderAttack={isUnderAttack} theme={theme} />
               </div>
             </div>
             <div className="card risk-card pos-risk">
@@ -895,7 +905,7 @@ function App() {
               </div>
             </div>
             <div className="card pos-topo" style={{ padding:0, overflow:'hidden' }}>
-              <ThreatMap alerts={alerts} blockedIPs={blockedIPs} />
+              <ThreatMap alerts={alerts} blockedIPs={blockedIPs} theme={theme} />
             </div>
             <div className="card right-card pos-ai">
               <div className="panel-header"><div className="card-title"><span className="kpi-icon text-cyan">🤖</span> AI Threat Detection</div><span className="dots-menu">•••</span></div>
@@ -958,7 +968,7 @@ function App() {
         {/* DISCOVERY */}
         {activeTab === 'discovery' && (
           <div className="tab-grid discovery-grid">
-            <div className="card topo-card span-full" style={{padding:0,height:'60vh'}}><ScadaTopology isUnderAttack={isUnderAttack} /></div>
+            <div className="card topo-card span-full" style={{padding:0,height:'60vh'}}><ScadaTopology isUnderAttack={isUnderAttack} theme={theme} /></div>
             <div className="card bg-grad-cyan"><div className="card-title">Discovered Protocols</div><p className="text-dim mt-2">Modbus TCP: 4 Devices<br/>DNP3: 1 Device<br/>Profinet: 1 Device</p></div>
             <div className="card bg-grad-cyan">
               <div className="card-title">Shadow IT Scanner <span style={{fontSize:10,color:'#6b7280'}}>via Nmap</span></div>
@@ -974,7 +984,7 @@ function App() {
           <div style={{display:'flex',flexDirection:'column',gap:16}}>
             <div className="card" style={{padding:16}}>
               <div className="card-title" style={{marginBottom:12}}>🌐 Global Attack Origin Map <span style={{marginLeft:10,color:'#6b7280',fontSize:11,fontWeight:'normal'}}>— drag to rotate — live attacker IPs plotted</span></div>
-              <AttackGlobe alerts={alerts} isUnderAttack={isUnderAttack} />
+              <ThreatMap alerts={alerts} blockedIPs={blockedIPs} theme={theme} height="400px" />
             </div>
             <div className="card traffic-card">
               <div className="card-title" style={{display:'flex',justifyContent:'space-between'}}>
@@ -984,7 +994,7 @@ function App() {
                   <span style={{color:scanning?'#f59e0b':'#00d2ff'}}>{scanning?'⟳ Scanning...':'● Nmap Live'}</span>
                 </span>
               </div>
-              <div style={{height:180,marginTop:8}}><NmapTrafficGraph trafficHistory={trafficHistory} scanData={scanData} scanning={scanning} isUnderAttack={isUnderAttack} height={180} /></div>
+              <div style={{height:180,marginTop:8}}><NmapTrafficGraph trafficHistory={trafficHistory} scanData={scanData} scanning={scanning} isUnderAttack={isUnderAttack} theme={theme} height={180} /></div>
             </div>
             <div className="card alerts-mid-card">
               <div className="card-title" style={{marginBottom:12}}>⚡ Live Alert Feed — {alerts.length} alerts — ML detected — MITRE mapped</div>
@@ -1059,3 +1069,4 @@ function App() {
 }
 
 export default App;
+
