@@ -14,10 +14,10 @@ ATTACK_TYPES = [
 ]
 
 def reset_system():
-    """Reset system state so each attack starts fresh."""
+    """Soft-reset: clears attack state but KEEPS alert history so count grows."""
     try:
-        requests.post(f"{BACKEND}/api/v1/reset", timeout=5)
-        print("🔄 System reset to baseline...")
+        requests.post(f"{BACKEND}/api/v1/soft-reset", timeout=5)  # ← KEY FIX
+        print("🔄 System soft-reset (attack state cleared, history preserved)...")
         time.sleep(0.5)
     except Exception as e:
         print(f"⚠️  Reset warning: {e}")
@@ -40,7 +40,6 @@ def main():
     print("=" * 55)
     print()
 
-    # Pick random attack type
     payload = random.choice(ATTACK_TYPES)
 
     print("💀 INITIATING ATTACK ON OT NETWORK...")
@@ -54,22 +53,23 @@ def main():
     print(f"🌐 Attacker IP: {payload['attacker_ip']}")
     time.sleep(1)
 
-    # ── Auto-reset so second/third attack always works ──────
     reset_system()
 
-    # ── Send attack ─────────────────────────────────────────
     success, response = launch_attack(payload)
 
     if success:
+        data = response.json()
         print()
         print("🚨 BOOM! ATTACK SUCCESSFUL! Check the Dashboard!")
-        print(f"   → Attacker : {payload['attacker_ip']}")
-        print(f"   → Target   : {payload['target_device']}")
-        print(f"   → Method   : {payload['attack_type']}")
+        print(f"   → Attacker      : {payload['attacker_ip']}")
+        print(f"   → Target        : {payload['target_device']}")
+        print(f"   → Method        : {payload['attack_type']}")
+        print(f"   → Total Alerts  : {data.get('total_alerts', '?')}")  # ← shows growing count
         print()
         print("👉 Go to dashboard → click 🛑 BLOCK ATTACKER to stop it")
         print("   OR enable Auto-Respond in ML Engine tab")
     elif response is None:
+        
         print()
         print("❌ Attack Failed: Could not connect to backend.")
         print("   → Make sure uvicorn is running on port 8000")

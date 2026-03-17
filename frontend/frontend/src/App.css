@@ -9,6 +9,7 @@
   --card-border: #0e1e38;
   --sidebar-bg: #030610;
   --header-bg: #050b1a;
+  --bg-glow: #050f24;
   
   --thin-line: rgba(0, 210, 255, 0.1); 
   --text-main: #e2e8f0;
@@ -29,13 +30,44 @@
   --eq-darkred: #991b1b;
 }
 
+:root[data-theme='light'] {
+  --bg-black: #f4f7fb;
+  --bg-main: #ffffff;
+  --card-bg: #ffffff;
+  --card-border: #d6deeb;
+  --sidebar-bg: #eef3f9;
+  --header-bg: #f8fbff;
+  --bg-glow: #dbeafe;
+  --thin-line: rgba(15, 23, 42, 0.1);
+  --text-main: #0f172a;
+  --text-dim: #475569;
+  --text-tiny: #64748b;
+  --c-cyan: #00d2ff;
+  --c-blue: #334155;
+  --eq-cyan: #111111;
+}
+
 body {
   background-color: var(--bg-black);
-  background-image: radial-gradient(circle at top right, #050f24 0%, var(--bg-black) 60%);
+  background-image: radial-gradient(circle at top right, var(--bg-glow) 0%, var(--bg-black) 60%);
   color: var(--text-dim);
   font-family: 'Inter', sans-serif;
   margin: 0; padding: 0;
   height: 100vh; overflow: hidden; /* App-wrapper handles scroll */
+  transition: background-color 0.25s ease, background-image 0.25s ease, color 0.25s ease;
+}
+
+.loading-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--text-main);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
 }
 
 /* LAYOUT: SIDEBAR + MAIN CONTENT */
@@ -63,6 +95,57 @@ body {
 .top-header h2 { margin: 0; color: var(--text-main); font-size: 20px; font-weight: 600; letter-spacing: 1px;}
 .header-right { display: flex; gap: 20px; font-size: 12px; color: var(--text-dim); align-items: center;}
 .user-icon { background: var(--card-border); padding: 6px; border-radius: 50%; display: flex;}
+.theme-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--text-main);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+}
+.theme-toggle:hover { box-shadow: 0 0 0 3px rgba(0, 210, 255, 0.14); }
+.theme-option {
+  position: relative;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+  transition: color 0.25s ease;
+}
+.theme-option.active { color: #ffffff; }
+:root[data-theme='light'] .theme-option.active { color: #ffffff; }
+.theme-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #111111;
+  transition: transform 0.25s ease, background 0.25s ease;
+}
+.theme-toggle-thumb.light {
+  transform: translateX(26px);
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px #cbd5e1, 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+:root[data-theme='light'] .theme-option:not(.active) { color: #334155; }
+:root[data-theme='light'] .theme-toggle { background: #e2e8f0; }
+:root[data-theme='light'] .theme-toggle:hover { box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.1); }
+:root[data-theme='light'] .theme-option.active:last-of-type { color: #0f172a; }
 
 /* TAB SPECIFIC GRIDS */
 .tab-grid { display: grid; gap: 16px; }
@@ -92,6 +175,7 @@ body {
 
 /* CARDS */
 .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; position: relative; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+.card { transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease; }
 .bg-grad-cyan { background: linear-gradient(180deg, var(--card-bg) 0%, rgba(0, 210, 255, 0.05) 100%); }
 .bg-grad-red { background: linear-gradient(180deg, var(--card-bg) 0%, rgba(239, 68, 68, 0.08) 100%); }
 .card-title { font-size: 14px; color: var(--text-main); font-weight: 500; display: flex; align-items: center;}
@@ -203,3 +287,8 @@ body {
 @keyframes flashRedBorder { 0%, 100% { border-color: var(--card-border); } 50% { border-color: rgba(239, 68, 68, 0.5); box-shadow: inset 0 0 10px rgba(239, 68, 68, 0.1); } }
 .flash-bg { animation: flashBg 2s ease-out; }
 .border-flash { animation: flashRedBorder 2s infinite; }
+
+@media (max-width: 900px) {
+  .top-header { align-items: flex-start; gap: 12px; }
+  .header-right { flex-wrap: wrap; justify-content: flex-end; }
+}

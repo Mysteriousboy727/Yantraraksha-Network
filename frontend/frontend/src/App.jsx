@@ -4,15 +4,51 @@ import apiClient from './services/apiClient';
 import AttackGlobe from './AttackGlobe';
 import ThreatMap from './ThreatMap';
 import './App.css';
+import LoginPage from './LoginPage';
 import MLEngineTab from './MLEngineTab';
 
 const BACKEND_URL        = 'http://localhost:8000';
 const NMAP_SCAN_INTERVAL = 30000;
+const DEFAULT_STATUS_DATA = {
+  devices_online: 6,
+  baseline_status: 'Offline Demo',
+  attacker_blocked: false,
+  blocked_by: null,
+  current_threat_ip: null,
+  ml_engine_active: false,
+  auto_respond: false,
+  is_under_attack: false,
+  packets_per_second: 0,
+  critical_alerts: 0,
+  ml_confidence: 0,
+  active_threat: 'Unavailable',
+  total_alerts: 0,
+};
+
+function readStoredUser() {
+  try {
+    const saved = localStorage.getItem('sentinel-user');
+    if (!saved) return null;
+    const parsed = JSON.parse(saved);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    localStorage.removeItem('sentinel-user');
+    return null;
+  }
+}
+
+function readStoredTheme() {
+  try {
+    return localStorage.getItem('sentinel-theme') || 'dark';
+  } catch {
+    return 'dark';
+  }
+}
 
 // ==========================================
 // NMAP HOOK
 // ==========================================
-function useNmapScan() {
+function useNmapScan(enabled = true) {
   const [scanData, setScanData]      = useState(null);
   const [scanning, setScanning]      = useState(false);
   const [lastScan, setLastScan]      = useState(null);
@@ -35,10 +71,11 @@ function useNmapScan() {
     finally { setScanning(false); }
   }, []);
   useEffect(() => {
+    if (!enabled) return;
     runScan();
     const id = setInterval(runScan, NMAP_SCAN_INTERVAL);
     return () => clearInterval(id);
-  }, [runScan]);
+  }, [enabled, runScan]);
   return { scanData, scanning, lastScan, trafficHistory, runScan };
 }
 
@@ -615,6 +652,7 @@ function IncidentResponseTab({ statusData, alerts, incidentData, isUnderAttack, 
 // MAIN APP
 // ==========================================
 function App() {
+  const [currentUser, setCurrentUser]     = useState(readStoredUser);
   const [statusData, setStatusData]       = useState(null);
   const [alerts, setAlerts]               = useState([]);
   const [devices, setDevices]             = useState([]);
@@ -623,18 +661,44 @@ function App() {
   const [activeTab, setActiveTab]         = useState('dashboard');
   const [blocking, setBlocking]           = useState(false);
   const [blockMsg, setBlockMsg]           = useState('');
+  const [theme, setTheme]                 = useState(readStoredTheme);
 
-  const { scanData, scanning, lastScan, trafficHistory, runScan } = useNmapScan();
+  const { scanData, scanning, lastScan, trafficHistory, runScan } = useNmapScan(Boolean(currentUser));
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem('sentinel-theme', theme);
+    } catch {}
+  }, [theme]);
+
+  const handleLogin = useCallback((user) => {
+    setCurrentUser(user);
+    setStatusData(DEFAULT_STATUS_DATA);
+    setAlerts([]);
+    setDevices([]);
+    setIncidentData(null);
+    setIsUnderAttack(false);
+    setActiveTab('dashboard');
+    try {
+      localStorage.setItem('sentinel-user', JSON.stringify(user));
+    } catch {}
+  }, []);
 
   const fetchData = useCallback(async () => {
     const s = await apiClient.getStatus();
-    if (s) { setStatusData(s); setIsUnderAttack(s.is_under_attack); }
+    setStatusData(prev => {
+      const next = s || prev || DEFAULT_STATUS_DATA;
+      setIsUnderAttack(Boolean(next.is_under_attack));
+      return next;
+    });
     const a = await apiClient.getAlerts();         if (a) setAlerts(a);
     const d = await apiClient.getDevices();        if (d) setDevices(d);
     const i = await apiClient.getIncidentDetails();if (i) setIncidentData(i);
   }, []);
 
   useEffect(() => {
+    if (!currentUser) return;
     fetchData();
     const id = setInterval(fetchData, 3000);
     apiClient.connectWebSocket((newAlert) => {
@@ -642,7 +706,9 @@ function App() {
       if (newAlert.severity === 'CRITICAL') { setIsUnderAttack(true); fetchData(); }
     });
     return () => clearInterval(id);
-  }, [fetchData]);
+  }, [currentUser, fetchData]);
+
+  if (!currentUser) return <LoginPage onLogin={handleLogin} />;
 
   const handleManualBlock = async () => {
     setBlocking(true); setBlockMsg('');
@@ -664,7 +730,7 @@ function App() {
   };
 
   const handleReset = async () => {
-    await fetch(`${BACKEND_URL}/api/v1/reset`, { method:'POST' });
+    await fetch(`${BACKEND_URL}/api/v1/soft-reset`, { method:'POST' });
     setBlockMsg(''); setIsUnderAttack(false);
     setStatusData(prev => ({ ...prev, is_under_attack:false, attacker_blocked:false, blocked_by:null, current_threat_ip:null, critical_alerts:0, active_threat:'None', ml_confidence:12.0 }));
     setAlerts([]); setTimeout(fetchData, 300);
@@ -731,10 +797,47 @@ function App() {
         <header className="top-header">
           <h2>{activeTab.replace('_',' ').toUpperCase()}</h2>
           <div className="header-right">
-            <span>Factory: TN Automotive Cluster</span>
-            <span className="live-mon">⏱ Live Monitoring</span>
-            <span className="user-icon">👤</span>
-          </div>
+  <span>Factory: TN Automotive Cluster</span>
+  <span className="live-mon">⏱ Live Monitoring</span>
+
+  {/* Theme toggle */}
+  <button
+    onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+    style={{
+      background: theme === 'light' ? '#0f172a' : 'rgba(0,210,255,0.08)',
+      color:      theme === 'light' ? '#e2e8f0' : '#00d2ff',
+      border:     theme === 'light' ? '1px solid #334155' : '1px solid rgba(0,210,255,0.25)',
+      borderRadius: 20, padding: '5px 14px',
+      fontSize: 12, fontWeight: 700, cursor: 'pointer',
+      display: 'flex', alignItems: 'center', gap: 6,
+    }}
+  >
+    {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
+  </button>
+
+  {/* User + Logout */}
+  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+    <span style={{ color:'#475569', fontSize:11 }}>
+      👤 <span style={{ color:'#00d2ff', fontWeight:700 }}>{currentUser?.username}</span>
+      <span style={{ color:'#334155', marginLeft:4 }}>· {currentUser?.role}</span>
+    </span>
+    <button
+      onClick={() => {
+        setCurrentUser(null);
+        try { localStorage.removeItem('sentinel-user'); } catch {}
+      }}
+      style={{
+        background:'rgba(239,68,68,0.1)',
+        border:'1px solid rgba(239,68,68,0.3)',
+        borderRadius:6, padding:'4px 12px',
+        color:'#ef4444', fontSize:11,
+        fontWeight:700, cursor:'pointer',
+      }}
+    >
+      ⏻ LOGOUT
+    </button>
+  </div>
+</div>
         </header>
 
         {blockMsg && (
@@ -748,8 +851,7 @@ function App() {
           <div className="master-grid">
             <div className="card kpi-card bg-grad-cyan pos-kpi1">
               <div className="kpi-top"><span className="kpi-icon text-cyan">🤖</span><span className="kpi-title">Machines Online</span></div>
-              <div className="kpi-value text-white">{scanData?.total_found ?? statusData.devices_online}</div>
-              <div style={{fontSize:10,color:'#6b7280',marginTop:4}}>{scanData ? `${scanData.hosts?.filter(h=>h.status==='TRUSTED').length??0} trusted · ${scanData.rogue_count??0} rogue` : 'Loading scan...'}</div>
+                <div className="kpi-value text-cyan">{scanData?.total_found ?? statusData.devices_online}</div>              <div style={{fontSize:10,color:'#6b7280',marginTop:4}}>{scanData ? `${scanData.hosts?.filter(h=>h.status==='TRUSTED').length??0} trusted · ${scanData.rogue_count??0} rogue` : 'Loading scan...'}</div>
             </div>
             <div className={`card kpi-card ${isUnderAttack?'bg-grad-red border-flash':'bg-grad-cyan'} pos-kpi2`}>
               <div className="kpi-top"><span className={`kpi-icon ${isUnderAttack?'alert-bg text-red':'text-cyan'}`}>{isUnderAttack?'🚨':'✅'}</span><span className="kpi-title">Network Status</span></div>
