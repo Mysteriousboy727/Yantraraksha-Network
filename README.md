@@ -48,14 +48,25 @@
 
 ## 🖥️ Live Demo Screenshots
 
-| Dashboard (Dark) | ML Engine Tab |
-|---|---|
-| Real-time KPIs, Threat Map, SCADA Topology | Alert trends, Heatmap, Device Quarantine |
+### 🟢 Dashboard — Before Attack
 
-| Alert Feed | Incident Response (SOC) |
-|---|---|
-| Live Leaflet map + alert list | Attack chain, Affected assets, SOC chat |
+| Before Attack |
+|---|
+| ![Before Attack](assets/screenshots/Before%20Attack.png) |
 
+---
+
+### 🔴 Dashboard — During / After Attack
+
+| Stage 1 | Stage 2 |
+|---|---|
+| ![After Attack 1](assets/screenshots/After%20attack1.png) | ![After Attack 3](assets/screenshots/After%20Attack%203.png) |
+
+| Stage 3 | Stage 4 |
+|---|---|
+| ![After Attack 4](assets/screenshots/After%20Attack%204.png) | ![After Attack 5](assets/screenshots/After%20Attack%205.png) |
+
+---
 ---
 
 ## 🏗️ System Architecture
