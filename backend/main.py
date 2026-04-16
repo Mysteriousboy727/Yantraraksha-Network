@@ -196,7 +196,72 @@ def get_incident_details():
     return {"message": "System is secure."}
 
 # ==========================================
-# API 5 — TRIGGER ATTACK
+# API 5 — NETWORK SCAN
+# Provides a frontend-friendly Nmap-style summary used by the dashboard.
+# ==========================================
+@app.get("/api/v1/scan")
+def get_network_scan():
+    trusted_hosts = [
+        {
+            "ip": "10.0.0.11",
+            "hostname": "HMI-D1",
+            "status": "TRUSTED",
+            "open_ports": {"502": "Modbus TCP", "443": "HTTPS"},
+        },
+        {
+            "ip": "10.0.0.12",
+            "hostname": "PLC-01",
+            "status": "TRUSTED",
+            "open_ports": {"502": "Modbus TCP"},
+        },
+        {
+            "ip": "10.0.0.13",
+            "hostname": "Robotic Arm",
+            "status": "TRUSTED",
+            "open_ports": {"44818": "EtherNet/IP"},
+        },
+        {
+            "ip": "10.0.0.14",
+            "hostname": "Conveyor Sensor",
+            "status": "TRUSTED",
+            "open_ports": {"80": "HTTP"},
+        },
+        {
+            "ip": "10.0.0.15",
+            "hostname": "HMI-01",
+            "status": "TRUSTED",
+            "open_ports": {"443": "HTTPS", "3389": "RDP"},
+        },
+        {
+            "ip": "10.0.0.16",
+            "hostname": "PLC-04",
+            "status": "TRUSTED",
+            "open_ports": {"502": "Modbus TCP"},
+        },
+    ]
+
+    hosts = trusted_hosts.copy()
+
+    if SYSTEM_STATE["is_under_attack"] and SYSTEM_STATE["current_threat_ip"]:
+        hosts.append({
+            "ip": SYSTEM_STATE["current_threat_ip"],
+            "hostname": "Unknown Device",
+            "status": "ROGUE",
+            "open_ports": {"502": "Modbus TCP", "22": "SSH"},
+        })
+
+    rogue_count = len([host for host in hosts if host["status"] == "ROGUE"])
+
+    return {
+        "network": "10.0.0.0/24",
+        "scanned_at": datetime.datetime.utcnow().isoformat(),
+        "total_found": len(hosts),
+        "rogue_count": rogue_count,
+        "hosts": hosts,
+    }
+
+# ==========================================
+# API 6 — TRIGGER ATTACK
 # ==========================================
 class AttackPayload(BaseModel):
     attacker_ip:   str = "45.33.32.156"
@@ -272,7 +337,7 @@ async def trigger_attack(payload: AttackPayload):
     return {"status": "success", "message": "Attack triggered!"}
 
 # ==========================================
-# API 6 — BLOCK ATTACKER
+# API 7 — BLOCK ATTACKER
 # ==========================================
 class BlockRequest(BaseModel):
     ip:     Optional[str] = None
@@ -315,7 +380,7 @@ async def block_attacker(req: BlockRequest):
     return {"status": "blocked", "ip": ip, "firewall": fw_status, "blocked_by": "manual"}
 
 # ==========================================
-# API 7 — ML ENGINE CONTROL
+# API 8 — ML ENGINE CONTROL
 # ==========================================
 class MLControlRequest(BaseModel):
     action: str
@@ -339,14 +404,14 @@ async def ml_control(req: MLControlRequest):
     return {"status": "error", "message": "Unknown action"}
 
 # ==========================================
-# API 8 — BLOCKED IPs
+# API 9 — BLOCKED IPs
 # ==========================================
 @app.get("/api/v1/blocked-ips")
 def get_blocked_ips():
     return {"total": len(BLOCKED_IPS), "blocked": BLOCKED_IPS}
 
 # ==========================================
-# API 9 — UNBLOCK
+# API 10 — UNBLOCK
 # ==========================================
 class UnblockRequest(BaseModel):
     ip: str

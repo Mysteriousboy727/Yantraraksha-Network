@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+ï»¿import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const HOME = { lat: 13.08, lon: 80.27, label: 'ICS Factory' };
 
@@ -88,7 +88,6 @@ function useLeaflet() {
     }
 
     if (window.L) {
-      setReady(true);
       return;
     }
 
@@ -206,7 +205,9 @@ export default function ThreatMap({ alerts = [], blockedIPs = {}, theme = 'dark'
     const refresh = () => {
       try {
         map.invalidateSize(false);
-      } catch {}
+      } catch {
+        return;
+      }
     };
 
     refresh();
@@ -229,7 +230,9 @@ export default function ThreatMap({ alerts = [], blockedIPs = {}, theme = 'dark'
     const refresh = () => {
       try {
         map.invalidateSize(false);
-      } catch {}
+      } catch {
+        return;
+      }
     };
     refresh();
     const timeoutId = window.setTimeout(refresh, 140);
@@ -244,7 +247,9 @@ export default function ThreatMap({ alerts = [], blockedIPs = {}, theme = 'dark'
     layersRef.current.forEach((layer) => {
       try {
         map.removeLayer(layer);
-      } catch {}
+      } catch {
+        return;
+      }
     });
     layersRef.current = [];
 
@@ -276,8 +281,8 @@ export default function ThreatMap({ alerts = [], blockedIPs = {}, theme = 'dark'
       .bindPopup(`
         <div style="font-family:monospace;padding:4px;min-width:170px;">
           <div style="color:${palette.accent};font-weight:800;font-size:13px;margin-bottom:6px;">${HOME.label}</div>
-          <div style="color:#64748b;font-size:10px;">PLC-01 · Chennai, Tamil Nadu</div>
-          <div style="color:#64748b;font-size:10px;margin-top:2px;">13.08°N, 80.27°E</div>
+          <div style="color:#64748b;font-size:10px;">PLC-01 Â· Chennai, Tamil Nadu</div>
+          <div style="color:#64748b;font-size:10px;margin-top:2px;">13.08Â°N, 80.27Â°E</div>
           <div style="margin-top:8px;padding:5px 8px;background:rgba(0,210,255,0.1);border:1px solid rgba(0,210,255,0.3);border-radius:5px;color:${palette.accent};font-size:10px;text-align:center;font-weight:700;">
             SENSOR ACTIVE
           </div>
@@ -339,7 +344,7 @@ export default function ThreatMap({ alerts = [], blockedIPs = {}, theme = 'dark'
               </div>
             </div>
             <div style="margin-top:8px;padding:5px 8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:5px;color:#f87171;font-size:9px;text-align:center;">
-              Targeting PLC-01 · Chennai · Port 502
+              Targeting PLC-01 Â· Chennai Â· Port 502
             </div>
           </div>
         `);
@@ -391,7 +396,9 @@ export default function ThreatMap({ alerts = [], blockedIPs = {}, theme = 'dark'
     const refresh = () => {
       try {
         map.invalidateSize(false);
-      } catch {}
+      } catch {
+        return;
+      }
     };
     refresh();
     const timeoutId = window.setTimeout(refresh, 120);
@@ -538,3 +545,4 @@ export default function ThreatMap({ alerts = [], blockedIPs = {}, theme = 'dark'
     </div>
   );
 }
+

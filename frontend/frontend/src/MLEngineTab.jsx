@@ -1,4 +1,4 @@
-// src/MLEngineTab.jsx
+﻿// src/MLEngineTab.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 const BACKEND = 'http://localhost:8000';
@@ -52,8 +52,13 @@ function LineChart({ datasets, labels, height=160 }) {
 
 function SeverityDonut({ total, slices }) {
   const r=54,cx=70,cy=70,sw=14,circ=2*Math.PI*r;
-  let offset=0;
-  const arcs=slices.map(s=>{const dash=(s.pct/100)*circ;const arc={...s,dash,gap:circ-dash,offset};offset+=dash;return arc;});
+  const arcs=slices.map((s, index)=>{
+    const dash=(s.pct/100)*circ;
+    const offset=slices
+      .slice(0,index)
+      .reduce((sum, slice)=>sum+(slice.pct/100)*circ, 0);
+    return {...s,dash,gap:circ-dash,offset};
+  });
   return (
     <div style={{position:'relative',width:140,height:140,flexShrink:0}}>
       <svg width={140} height={140} style={{transform:'rotate(-90deg)'}}>
@@ -106,19 +111,19 @@ function MLControls({ statusData, isUnderAttack, onManualBlock, onMLControl, blo
             boxShadow:`0 0 8px ${statusData?.ml_engine_active?'#10b981':'#ef4444'}`}} />
           <div>
             <div style={{color:'var(--text-main)',fontWeight:700,fontSize:13}}>ML Engine</div>
-            <div style={{color:'var(--text-dim)',fontSize:10}}>Isolation Forest v2.1 — {statusData?.ml_engine_active?'Active':'Stopped'}</div>
+            <div style={{color:'var(--text-dim)',fontSize:10}}>Isolation Forest v2.1 â€” {statusData?.ml_engine_active?'Active':'Stopped'}</div>
           </div>
         </div>
         <div style={{display:'flex',gap:6}}>
-          <button onClick={()=>onMLControl('start')} style={{background:'#10b981',color:'#fff',border:'none',borderRadius:6,padding:'5px 12px',fontWeight:700,fontSize:12,cursor:'pointer'}}>▶ Start</button>
-          <button onClick={()=>onMLControl('stop')}  style={{background:'#ef4444',color:'#fff',border:'none',borderRadius:6,padding:'5px 12px',fontWeight:700,fontSize:12,cursor:'pointer'}}>■ Stop</button>
+          <button onClick={()=>onMLControl('start')} style={{background:'#10b981',color:'#fff',border:'none',borderRadius:6,padding:'5px 12px',fontWeight:700,fontSize:12,cursor:'pointer'}}>â–¶ Start</button>
+          <button onClick={()=>onMLControl('stop')} style={{background:'#ef4444',color:'#fff',border:'none',borderRadius:6,padding:'5px 12px',fontWeight:700,fontSize:12,cursor:'pointer'}}>Stop</button>
         </div>
       </div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',borderRadius:8,
         background:statusData?.auto_respond?'rgba(16,185,129,0.06)':'rgba(0,210,255,0.04)',
         border:`1px solid ${statusData?.auto_respond?'rgba(16,185,129,0.25)':'rgba(0,210,255,0.12)'}`}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <span style={{fontSize:18}}>🤖</span>
+          <span style={{fontSize:18}}>ðŸ¤–</span>
           <div>
             <div style={{color:'var(--text-main)',fontWeight:700,fontSize:13}}>Auto-Respond</div>
             <div style={{color:'var(--text-dim)',fontSize:10}}>Auto-block when confidence &gt; 95%</div>
@@ -135,7 +140,7 @@ function MLControls({ statusData, isUnderAttack, onManualBlock, onMLControl, blo
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',borderRadius:8,
         background:'rgba(0,210,255,0.04)',border:'1px solid rgba(0,210,255,0.12)'}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <span style={{fontSize:18}}>🔔</span>
+          <span style={{fontSize:18}}>ðŸ””</span>
           <div>
             <div style={{color:'var(--text-main)',fontWeight:700,fontSize:13}}>Alert Notifications</div>
             <div style={{color:'var(--text-dim)',fontSize:10}}>Push critical alerts to SOC</div>
@@ -159,7 +164,7 @@ function MLControls({ statusData, isUnderAttack, onManualBlock, onMLControl, blo
       </div>
       {isUnderAttack && !statusData?.attacker_blocked && (
         <button onClick={onManualBlock} disabled={blocking} style={{background:'#dc2626',color:'#fff',border:'none',borderRadius:8,padding:'10px',fontWeight:800,fontSize:13,cursor:'pointer',width:'100%'}}>
-          {blocking?'⟳ Blocking...':'🛑 Manual Block Attacker'}
+          {blocking?'âŸ³ Blocking...':'ðŸ›‘ Manual Block Attacker'}
         </button>
       )}
     </div>
@@ -201,11 +206,11 @@ export default function MLEngineTab({ statusData, alerts, isUnderAttack, onManua
     {label:'Critical',color:'#ef4444',pct:12},{label:'High',color:'#f97316',pct:28},
     {label:'Med',color:'#facc15',pct:38},{label:'Low',color:'#10b981',pct:22},
   ];
-  const heatmapData=Array.from({length:7},(_,di)=>
+  const heatmapData=Array.from({length:7},()=>
     Array.from({length:24},(_,hi)=>Math.max(0,Math.round((hi>=9&&hi<=17?12:3)+(Math.random()-0.3)*15))));
 
   useEffect(()=>{
-    const load=async()=>{try{const r=await fetch(`${BACKEND}/api/v1/quarantine`);if(r.ok){const d=await r.json();setQuarantined(d.devices||{});}}catch{}};
+    const load=async()=>{try{const r=await fetch(`${BACKEND}/api/v1/quarantine`);if(r.ok){const d=await r.json();setQuarantined(d.devices||{});}}catch(error){console.warn('Failed to load quarantine state', error);}};
     load();const id=setInterval(load,5000);return()=>clearInterval(id);
   },[]);
 
@@ -214,7 +219,7 @@ export default function MLEngineTab({ statusData, alerts, isUnderAttack, onManua
     ppsRef.current=setInterval(async()=>{
       const pps=Math.max(100,base+Math.floor((Math.random()-0.5)*800));
       try{await fetch(`${BACKEND}/api/v1/packets/update`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pps})});
-      }catch{}
+      }catch(error){console.warn('Failed to publish packet stats', error);}
       setPacketStats(prev=>({pps,peak:Math.max(prev.peak,pps),total:prev.total+pps}));
     },2000);
     return()=>clearInterval(ppsRef.current);
@@ -239,20 +244,20 @@ export default function MLEngineTab({ statusData, alerts, isUnderAttack, onManua
     try{const r=await fetch(`${BACKEND}/api/v1/report/${format}`);if(!r.ok)throw new Error('Export failed');
     const blob=await r.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');
     a.href=url;a.download=`sentinel_report_${new Date().toISOString().slice(0,10)}.${format}`;a.click();
-    URL.revokeObjectURL(url);setExportMsg(`✓ Report downloaded as .${format.toUpperCase()}`);
-    }catch(e){setExportMsg(`✗ Export failed: ${e.message}`);}finally{setExporting(false);}
+    URL.revokeObjectURL(url);setExportMsg(`âœ“ Report downloaded as .${format.toUpperCase()}`);
+    }catch(e){setExportMsg(`âœ— Export failed: ${e.message}`);}finally{setExporting(false);}
   };
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:16}}>
 
-      {/* ── KPI CARDS ── */}
+      {/* â”€â”€ KPI CARDS â”€â”€ */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16}}>
         {[
-          {icon:'🔔',label:'TOTAL ACTIVE ALERTS',value:totalAlerts,    sub:'+12% from yesterday',subColor:'#ef4444',valColor:'#ef4444'},
-          {icon:'⚠️',label:'CRITICAL ALERTS',    value:criticalAlerts,sub:'+3 in last hour',    subColor:'#ef4444',valColor:'#ef4444'},
-          {icon:'⏱', label:'AVG RESPONSE TIME',  value:'8.2 min',     sub:'−15% improvement',  subColor:'#10b981',valColor:'#10b981'},
-          {icon:'📈',label:'THREAT TREND',        value:'Increasing',  sub:'Monitor closely',   subColor:'#f59e0b',valColor:'#f59e0b'},
+          {icon:'ðŸ””',label:'TOTAL ACTIVE ALERTS',value:totalAlerts,    sub:'+12% from yesterday',subColor:'#ef4444',valColor:'#ef4444'},
+          {icon:'âš ï¸',label:'CRITICAL ALERTS',    value:criticalAlerts,sub:'+3 in last hour',    subColor:'#ef4444',valColor:'#ef4444'},
+          {icon:'â±', label:'AVG RESPONSE TIME',  value:'8.2 min',     sub:'âˆ’15% improvement',  subColor:'#10b981',valColor:'#10b981'},
+          {icon:'ðŸ“ˆ',label:'THREAT TREND',        value:'Increasing',  sub:'Monitor closely',   subColor:'#f59e0b',valColor:'#f59e0b'},
         ].map(({icon,label,value,sub,subColor,valColor})=>(
           <div key={label} className="card" style={{padding:'18px 20px'}}>
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
@@ -265,7 +270,7 @@ export default function MLEngineTab({ statusData, alerts, isUnderAttack, onManua
         ))}
       </div>
 
-      {/* ── TREND + RADAR + DONUT ── */}
+      {/* â”€â”€ TREND + RADAR + DONUT â”€â”€ */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 260px 220px',gap:16}}>
         <div className="card" style={{padding:20}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
@@ -312,20 +317,20 @@ export default function MLEngineTab({ statusData, alerts, isUnderAttack, onManua
         </div>
       </div>
 
-      {/* ── HEATMAP + ML CONTROLS ── */}
+      {/* â”€â”€ HEATMAP + ML CONTROLS â”€â”€ */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 340px',gap:16}}>
         <div className="card" style={{padding:20}}>
           <div className="card-title" style={{marginBottom:14}}>Weekly Threat Activity Pattern</div>
           <WeeklyHeatmap data={heatmapData} />
         </div>
         <div className="card" style={{padding:20}}>
-          <div className="card-title" style={{marginBottom:6}}><span style={{marginRight:6}}>🤖</span> ML Engine Controls</div>
+          <div className="card-title" style={{marginBottom:6}}><span style={{marginRight:6}}>ðŸ¤–</span> ML Engine Controls</div>
           <div style={{fontSize:11,color:'var(--text-dim)',marginBottom:14}}>Manage automated threat response</div>
           <MLControls statusData={statusData} isUnderAttack={isUnderAttack} onManualBlock={onManualBlock} onMLControl={onMLControl} blocking={blocking} />
         </div>
       </div>
 
-      {/* ════ SEPARATOR ════ */}
+      {/* â•â•â•â• SEPARATOR â•â•â•â• */}
       <div style={{borderTop:'2px solid rgba(0,210,255,0.15)',paddingTop:16,marginTop:4}}>
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
           <div style={{height:1,flex:1,background:'rgba(0,210,255,0.1)'}} />
@@ -334,10 +339,10 @@ export default function MLEngineTab({ statusData, alerts, isUnderAttack, onManua
         </div>
       </div>
 
-      {/* ── NEW 1: Packet Monitor + Resolution Log ── */}
+      {/* â”€â”€ NEW 1: Packet Monitor + Resolution Log â”€â”€ */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
         <div className="card" style={{padding:20}}>
-          <div className="card-title" style={{marginBottom:16}}>📡 Real-time Packet Monitor</div>
+          <div className="card-title" style={{marginBottom:16}}>ðŸ“¡ Real-time Packet Monitor</div>
           <div style={{textAlign:'center',padding:'16px 0',marginBottom:16,
             background:isUnderAttack?'rgba(239,68,68,0.06)':'rgba(0,210,255,0.04)',
             borderRadius:10,border:`1px solid ${isUnderAttack?'rgba(239,68,68,0.2)':'rgba(0,210,255,0.15)'}`}}>
@@ -385,7 +390,7 @@ export default function MLEngineTab({ statusData, alerts, isUnderAttack, onManua
 
         <div className="card" style={{padding:20}}>
           <div className="card-title" style={{marginBottom:14}}>
-            📜 Attack Resolution Log
+            ðŸ“œ Attack Resolution Log
             <span style={{marginLeft:8,fontSize:11,color:'var(--text-dim)',fontWeight:400}}>
               {alerts.filter(a=>a.source_ip==='OFFICER'||a.source_ip==='SENTINEL-AI').length} entries
             </span>
@@ -419,18 +424,18 @@ export default function MLEngineTab({ statusData, alerts, isUnderAttack, onManua
                 </tr>
               ))}
               {alerts.filter(a=>a.source_ip==='OFFICER'||a.source_ip==='SENTINEL-AI').length===0&&(
-                <tr><td colSpan={5} style={{padding:'20px',textAlign:'center',color:'var(--text-dim)',fontSize:12}}>No resolved incidents — run hacker_attack.py to simulate</td></tr>
+                <tr><td colSpan={5} style={{padding:'20px',textAlign:'center',color:'var(--text-dim)',fontSize:12}}>No resolved incidents â€” run hacker_attack.py to simulate</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* ── NEW 2: Device Quarantine ── */}
+      {/* â”€â”€ NEW 2: Device Quarantine â”€â”€ */}
       <div className="card" style={{padding:20}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
           <div>
-            <div className="card-title">🔒 Device Quarantine</div>
+            <div className="card-title">ðŸ”’ Device Quarantine</div>
             <div style={{fontSize:11,color:'var(--text-dim)',marginTop:4}}>Isolate compromised ICS devices to prevent lateral movement across the network</div>
           </div>
           {Object.keys(quarantined).length>0&&(
@@ -448,7 +453,7 @@ export default function MLEngineTab({ statusData, alerts, isUnderAttack, onManua
             </tr>
           </thead>
           <tbody>
-            {ICS_DEVICES.map((device,i)=>{
+            {ICS_DEVICES.map((device)=>{
               const isQ=!!quarantined[device.ip];
               const isComp=isUnderAttack&&device.name==='PLC-01'&&!isQ;
               const status=isQ?'QUARANTINED':isComp?'COMPROMISED':'ONLINE';
@@ -462,13 +467,13 @@ export default function MLEngineTab({ statusData, alerts, isUnderAttack, onManua
                   <td style={{padding:'10px 12px'}}><span style={{fontSize:11,fontWeight:700,padding:'3px 8px',borderRadius:4,background:`${sc}22`,color:sc,border:`1px solid ${sc}44`}}>{status}</span></td>
                   <td style={{padding:'10px 12px'}}>
                     {isQ?(
-                      <button onClick={()=>handleRelease(device.ip)} style={{background:'rgba(16,185,129,0.12)',color:'#10b981',border:'1px solid rgba(16,185,129,0.3)',borderRadius:6,padding:'5px 12px',fontSize:11,fontWeight:700,cursor:'pointer'}}>🔓 Release</button>
+                      <button onClick={()=>handleRelease(device.ip)} style={{background:'rgba(16,185,129,0.12)',color:'#10b981',border:'1px solid rgba(16,185,129,0.3)',borderRadius:6,padding:'5px 12px',fontSize:11,fontWeight:700,cursor:'pointer'}}>ðŸ”“ Release</button>
                     ):(
                       <button onClick={()=>handleQuarantine(device)} disabled={quarantining===device.ip}
                         style={{background:isComp?'rgba(239,68,68,0.15)':'rgba(249,115,22,0.1)',color:isComp?'#ef4444':'#f97316',
                           border:`1px solid ${isComp?'rgba(239,68,68,0.4)':'rgba(249,115,22,0.3)'}`,
                           borderRadius:6,padding:'5px 12px',fontSize:11,fontWeight:700,cursor:'pointer',opacity:quarantining===device.ip?0.6:1}}>
-                        {quarantining===device.ip?'⟳':'🔒 Isolate'}
+                        {quarantining===device.ip?'âŸ³':'ðŸ”’ Isolate'}
                       </button>
                     )}
                   </td>
@@ -478,19 +483,19 @@ export default function MLEngineTab({ statusData, alerts, isUnderAttack, onManua
           </tbody>
         </table>
         <div style={{marginTop:14,padding:'10px 14px',borderRadius:8,background:'rgba(249,115,22,0.06)',border:'1px solid rgba(249,115,22,0.2)'}}>
-          <span style={{fontSize:11,color:'#f97316',fontWeight:700}}>⚠ What Quarantine does: </span>
+          <span style={{fontSize:11,color:'#f97316',fontWeight:700}}>Warning: What Quarantine does: </span>
           <span style={{fontSize:11,color:'var(--text-dim)'}}>Blocks ALL inbound + outbound traffic from the device via Windows Firewall, stopping lateral movement to other PLCs and HMIs. Click Release once the device is verified clean.</span>
         </div>
       </div>
 
-      {/* ── NEW 3: Export Report ── */}
+      {/* â”€â”€ NEW 3: Export Report â”€â”€ */}
       <div className="card" style={{padding:20}}>
-        <div className="card-title" style={{marginBottom:6}}>📋 Export Incident Report</div>
+        <div className="card-title" style={{marginBottom:6}}>ðŸ“‹ Export Incident Report</div>
         <div style={{fontSize:11,color:'var(--text-dim)',marginBottom:16}}>Download the full attack report for compliance, audit logs, and management review</div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
           {[
-            {format:'csv', icon:'📊',title:'CSV Report', desc:'Open in Excel · All alerts + incident log · Compatible with SIEM',color:'var(--c-cyan)',bg:'rgba(0,210,255,0.12)',border:'rgba(0,210,255,0.3)'},
-            {format:'json',icon:'🔧',title:'JSON Report',desc:'Machine-readable · Full system state · For SOAR/SIEM integration',color:'#8b5cf6',      bg:'rgba(139,92,246,0.12)',border:'rgba(139,92,246,0.3)'},
+            {format:'csv', icon:'ðŸ“Š',title:'CSV Report', desc:'Open in Excel Â· All alerts + incident log Â· Compatible with SIEM',color:'var(--c-cyan)',bg:'rgba(0,210,255,0.12)',border:'rgba(0,210,255,0.3)'},
+            {format:'json',icon:'ðŸ”§',title:'JSON Report',desc:'Machine-readable Â· Full system state Â· For SOAR/SIEM integration',color:'#8b5cf6',      bg:'rgba(139,92,246,0.12)',border:'rgba(139,92,246,0.3)'},
           ].map(({format,icon,title,desc,color,bg,border})=>(
             <div key={format} style={{padding:'16px',borderRadius:10,background:'rgba(0,0,0,0.1)',border:'1px solid var(--card-border)'}}>
               <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
@@ -501,21 +506,21 @@ export default function MLEngineTab({ statusData, alerts, isUnderAttack, onManua
                 </div>
               </div>
               <button onClick={()=>handleExport(format)} disabled={exporting} style={{width:'100%',background:bg,color,border:`1px solid ${border}`,borderRadius:8,padding:'10px',fontWeight:700,fontSize:13,cursor:'pointer'}}>
-                {exporting?'⟳ Generating...':`⬇ Download ${format.toUpperCase()}`}
+                {exporting?'âŸ³ Generating...':`â¬‡ Download ${format.toUpperCase()}`}
               </button>
             </div>
           ))}
         </div>
         {exportMsg&&(
           <div style={{padding:'8px 14px',borderRadius:6,fontSize:13,marginBottom:12,
-            background:exportMsg.startsWith('✓')?'rgba(16,185,129,0.12)':'rgba(239,68,68,0.12)',
-            border:`1px solid ${exportMsg.startsWith('✓')?'#10b981':'#ef4444'}44`,
-            color:exportMsg.startsWith('✓')?'#10b981':'#ef4444'}}>{exportMsg}</div>
+            background:exportMsg.startsWith('âœ“')?'rgba(16,185,129,0.12)':'rgba(239,68,68,0.12)',
+            border:`1px solid ${exportMsg.startsWith('âœ“')?'#10b981':'#ef4444'}44`,
+            color:exportMsg.startsWith('âœ“')?'#10b981':'#ef4444'}}>{exportMsg}</div>
         )}
         <div style={{padding:'12px 16px',borderRadius:8,background:'rgba(0,0,0,0.1)',border:'1px solid var(--card-border)'}}>
           <div style={{fontSize:12,color:'var(--text-main)',fontWeight:600,marginBottom:8}}>Report includes:</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
-            {['✓ Attack timestamps & duration','✓ Attacker IP & geolocation','✓ MITRE ATT&CK mapping','✓ Response actions taken','✓ Devices affected & quarantined','✓ ML confidence scores','✓ Firewall rules applied','✓ Officer actions log'].map(item=>(
+            {['âœ“ Attack timestamps & duration','âœ“ Attacker IP & geolocation','âœ“ MITRE ATT&CK mapping','âœ“ Response actions taken','âœ“ Devices affected & quarantined','âœ“ ML confidence scores','âœ“ Firewall rules applied','âœ“ Officer actions log'].map(item=>(
               <div key={item} style={{fontSize:11,color:'var(--text-dim)'}}>{item}</div>
             ))}
           </div>

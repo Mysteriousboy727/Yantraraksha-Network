@@ -1,9 +1,8 @@
-// AttackGlobe.jsx — 3D Globe with world map outlines + click attacker = country popup
+﻿// AttackGlobe.jsx â€” 3D Globe with world map outlines + click attacker = country popup
 // Place in: src/AttackGlobe.jsx
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import React, { useEffect, useRef, useState } from 'react';
-
-// ── GeoIP lookup ──────────────────────────────────────────────────────────────
+// â”€â”€ GeoIP lookup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const KNOWN = {
   '45.33':   { lat:37.39,  lon:-122.08, city:'Mountain View', country:'United States',  code:'US', isp:'Linode LLC' },
   '103.21':  { lat:1.35,   lon:103.82,  city:'Singapore',     country:'Singapore',      code:'SG', isp:'Cloudflare' },
@@ -14,7 +13,7 @@ const KNOWN = {
   '91.':     { lat:48.86,  lon:2.35,    city:'Paris',         country:'France',         code:'FR', isp:'OVH SAS' },
   '5.':      { lat:52.37,  lon:4.90,    city:'Amsterdam',     country:'Netherlands',    code:'NL', isp:'Serverius' },
   '196.':    { lat:-26.20, lon:28.04,   city:'Johannesburg',  country:'South Africa',   code:'ZA', isp:'Telkom SA' },
-  '177.':    { lat:-23.55, lon:-46.63,  city:'São Paulo',     country:'Brazil',         code:'BR', isp:'Claro' },
+  '177.':    { lat:-23.55, lon:-46.63,  city:'SÃ£o Paulo',     country:'Brazil',         code:'BR', isp:'Claro' },
 };
 const HOME = { lat:13.08, lon:80.27, city:'Chennai', country:'India', code:'IN' };
 
@@ -29,7 +28,7 @@ function getGeo(ip) {
            city:ip, country:'Unknown', code:'XX', isp:'Unknown ISP' };
 }
 
-// ── Sphere math ───────────────────────────────────────────────────────────────
+// â”€â”€ Sphere math â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ll2xyz(lat, lon, r) {
   const phi   = (90 - lat) * Math.PI / 180;
   const theta = (lon + 180) * Math.PI / 180;
@@ -44,7 +43,7 @@ function project([x,y,z], ry, rx, cx, cy, fov=650) {
   return { px: cx+x1*s, py: cy+y1*s, z:z2, s };
 }
 
-// ── World outline polylines [lat,lon][] ───────────────────────────────────────
+// â”€â”€ World outline polylines [lat,lon][] â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const OUTLINES = [
   // North America
   [[71,-141],[70,-136],[68,-135],[66,-136],[64,-140],[62,-145],[60,-146],[58,-137],
@@ -139,23 +138,20 @@ const OUTLINES = [
 ];
 
 function flagEmoji(code) {
-  if (!code || code==='XX') return '🌐';
+  if (!code || code==='XX') return 'ðŸŒ';
   return code.toUpperCase().replace(/./g, c => String.fromCodePoint(127397 + c.charCodeAt(0)));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
   const canvasRef  = useRef(null);
   const stateRef   = useRef({ ry:1.4, rx:-0.15, drag:false, lx:0, ly:0, spin:true });
   const attacksRef = useRef([]);
 
-  const [attacks,  setAttacks]  = useState([]);
   const [popup,    setPopup]    = useState(null);  // { atk, x, y }
   const [selected, setSelected] = useState(null);
-  const [stats,    setStats]    = useState({ total:0, critical:0, countries:0 });
 
-  // ── Build attacks from alerts ─────────────────────────────────────────────
-  useEffect(() => {
+  const { attacks, stats } = useMemo(() => {
     const map = new Map();
     alerts
       .filter(a => a.severity==='CRITICAL' || a.severity==='HIGH')
@@ -168,22 +164,27 @@ export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
             attack_type: a.attack_type || a.title || 'Unknown',
             mitre:       a.mitre_tag   || 'T0800',
             count:       1,
-            phase:       Math.random() * Math.PI * 2,
+            phase:       ((ip.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 628) / 100),
           });
         } else { map.get(ip).count++; }
       });
     const list = [...map.values()];
-    attacksRef.current = list;
-    setAttacks(list);
     const countries = new Set(list.map(p => p.geo.code)).size;
-    setStats({
-      total:    alerts.filter(a=>a.severity==='CRITICAL'||a.severity==='HIGH').length,
-      critical: alerts.filter(a=>a.severity==='CRITICAL').length,
-      countries,
-    });
+    return {
+      attacks: list,
+      stats: {
+        total:    alerts.filter(a=>a.severity==='CRITICAL'||a.severity==='HIGH').length,
+        critical: alerts.filter(a=>a.severity==='CRITICAL').length,
+        countries,
+      },
+    };
   }, [alerts]);
 
-  // ── Draw loop ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    attacksRef.current = attacks;
+  }, [attacks]);
+
+  // â”€â”€ Draw loop â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -252,7 +253,7 @@ export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
       }
       ctx.restore();
 
-      // ── World map outlines ──────────────────────────────────────────────
+      // â”€â”€ World map outlines â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       ctx.save();
       ctx.strokeStyle=isUnderAttack?'rgba(255,110,70,0.65)':'rgba(0,220,255,0.6)';
       ctx.lineWidth=1.0;
@@ -270,7 +271,7 @@ export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
       }
       ctx.shadowBlur=0; ctx.restore();
 
-      // ── Home (Chennai) ──────────────────────────────────────────────────
+      // â”€â”€ Home (Chennai) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       {
         const p=project(ll2xyz(HOME.lat,HOME.lon,R),s.ry,s.rx,cx,cy,FOV);
         if (p.z>0) {
@@ -283,11 +284,11 @@ export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
           ctx.beginPath();ctx.arc(p.px,p.py,6,0,Math.PI*2);
           ctx.fillStyle='#00ff96';ctx.shadowColor='#00ff96';ctx.shadowBlur=18;ctx.fill();ctx.shadowBlur=0;
           ctx.fillStyle='rgba(0,255,150,0.85)';ctx.font='bold 8px monospace';
-          ctx.textAlign='center';ctx.fillText('🏭 CHENNAI',p.px,p.py+18);
+          ctx.textAlign='center';ctx.fillText('ðŸ­ CHENNAI',p.px,p.py+18);
         }
       }
 
-      // ── Attacks: arcs + dots ────────────────────────────────────────────
+      // â”€â”€ Attacks: arcs + dots â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const atks=attacksRef.current;
       const selIP=selected?.ip;
       atks.forEach(atk => {
@@ -350,7 +351,7 @@ export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
     return ()=>cancelAnimationFrame(raf);
   }, [isUnderAttack, selected]);
 
-  // ── Mouse interactions ────────────────────────────────────────────────────
+  // â”€â”€ Mouse interactions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(()=>{
     const canvas=canvasRef.current; if(!canvas) return;
     const s=stateRef.current;
@@ -433,17 +434,17 @@ export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
 
           <div style={{position:'absolute',top:10,left:12,zIndex:10,
             color:accent,fontSize:11,fontWeight:700,letterSpacing:'1.5px'}}>
-            🌐 GLOBAL THREAT MAP — LIVE
+            ðŸŒ GLOBAL THREAT MAP â€” LIVE
           </div>
           <div style={{position:'absolute',bottom:8,left:12,zIndex:10,
             color:'#374151',fontSize:9}}>
-            DRAG TO ROTATE · CLICK RED DOT FOR COUNTRY INFO
+            DRAG TO ROTATE Â· CLICK RED DOT FOR COUNTRY INFO
           </div>
 
           {/* Legend */}
           <div style={{position:'absolute',bottom:8,right:10,zIndex:10,
             display:'flex',flexDirection:'column',gap:4}}>
-            {[['#00ff96','🏭 Our Factory (Chennai)'],
+            {[['#00ff96','ðŸ­ Our Factory (Chennai)'],
               ['#ef4444','CRITICAL Attack'],
               ['#f97316','HIGH Attack']].map(([col,lbl])=>(
               <div key={lbl} style={{display:'flex',alignItems:'center',gap:5}}>
@@ -457,7 +458,7 @@ export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
           <canvas ref={canvasRef} width={700} height={440}
             style={{width:'100%',height:'100%',cursor:'grab',display:'block'}}/>
 
-          {/* ── Popup on click ── */}
+          {/* â”€â”€ Popup on click â”€â”€ */}
           {popup && (
             <div style={{
               position:'absolute',left:popup.x,top:popup.y,
@@ -470,7 +471,7 @@ export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
               <button onClick={()=>{setPopup(null);setSelected(null);}}
                 style={{position:'absolute',top:8,right:10,background:'none',
                   border:'none',color:'#6b7280',fontSize:16,cursor:'pointer',lineHeight:1}}>
-                ✕
+                âœ•
               </button>
 
               {/* Big flag + country */}
@@ -482,11 +483,11 @@ export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
               </div>
               <div style={{color:'#94a3b8',fontSize:11,marginBottom:12,
                 display:'flex',alignItems:'center',gap:5}}>
-                <span>📍</span>
+                <span>ðŸ“</span>
                 <span>{popup.atk.geo.city}</span>
-                <span style={{color:'#374151'}}>·</span>
+                <span style={{color:'#374151'}}>Â·</span>
                 <span style={{fontFamily:'monospace',fontSize:10}}>
-                  {popup.atk.geo.lat?.toFixed(1)}°, {popup.atk.geo.lon?.toFixed(1)}°
+                  {popup.atk.geo.lat?.toFixed(1)}Â°, {popup.atk.geo.lon?.toFixed(1)}Â°
                 </span>
               </div>
 
@@ -521,7 +522,7 @@ export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
               <div style={{marginTop:10,padding:'7px 10px',borderRadius:6,
                 background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.25)',
                 color:'#fca5a5',fontSize:10,textAlign:'center',letterSpacing:'0.5px'}}>
-                ⚡ ATTACKING → PLC-01 · Chennai Factory
+                âš¡ ATTACKING â†’ PLC-01 Â· Chennai Factory
               </div>
             </div>
           )}
@@ -529,7 +530,7 @@ export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
           {attacks.length===0 && (
             <div style={{position:'absolute',top:'50%',left:'50%',
               transform:'translate(-50%,-50%)',textAlign:'center',pointerEvents:'none'}}>
-              <div style={{color:'#1f2937',fontSize:13,fontWeight:700}}>● NO ACTIVE THREATS</div>
+              <div style={{color:'#1f2937',fontSize:13,fontWeight:700}}>â— NO ACTIVE THREATS</div>
               <div style={{color:'#111827',fontSize:10,marginTop:4}}>Globe populates on attack detection</div>
             </div>
           )}
@@ -543,7 +544,7 @@ export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
             borderBottom:'1px solid rgba(255,255,255,0.05)',
             background:'rgba(239,68,68,0.06)',
             color:'#ef4444',fontSize:11,fontWeight:700,letterSpacing:'1px'}}>
-            🚨 ATTACK SOURCES — {attacks.length} IPs
+            ðŸš¨ ATTACK SOURCES â€” {attacks.length} IPs
           </div>
           <div style={{flex:1,overflowY:'auto',padding:8}}>
             {attacks.length===0 ? (
@@ -599,11 +600,11 @@ export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
 
                   {atk.count>1&&(
                     <div style={{color:col,fontSize:9,fontWeight:700}}>
-                      ×{atk.count} hits detected
+                      Ã—{atk.count} hits detected
                     </div>
                   )}
                   <div style={{color:'#1f2937',fontSize:9,marginTop:3}}>
-                    {isSel?'● Selected on globe':'Click to highlight'}
+                    {isSel?'â— Selected on globe':'Click to highlight'}
                   </div>
                 </div>
               );
@@ -621,3 +622,4 @@ export default function AttackGlobe({ alerts = [], isUnderAttack = false }) {
     </div>
   );
 }
+
