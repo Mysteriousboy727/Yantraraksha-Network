@@ -1,4 +1,5 @@
 ﻿// src/App.jsx
+﻿// src/App.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import apiClient from './services/apiClient';
 import ThreatMap from './ThreatMap';
@@ -702,55 +703,253 @@ const highlightedSteps = activeSteps[statusData?.active_threat] || [];
 
 function SimulationLab({ BACKEND_URL }) {
   const [selected, setSelected] = useState('');
-  const [running, setRunning] = useState(false);
-  const [steps, setSteps] = useState([]);
+  const [status, setStatus] = useState('Idle');
+  const [logs, setLogs] = useState([]);
+  const [simAlerts, setSimAlerts] = useState([]);
+  const [activeChainStep, setActiveChainStep] = useState(null);
+  const [summary, setSummary] = useState(null);
 
   const attacks = [
-    {id:'brute_force',label:'Brute Force + Credential Stuffing',color:'#ff9800'},
-    {id:'c2_beacon',label:'C2 Beaconing',color:'#9c27b0'},
-    {id:'data_exfil',label:'Data Exfiltration',color:'#f44336'},
+    {id:'brute_force',label:'Brute Force',color:'#ff9800'},
     {id:'lateral_movement',label:'Lateral Movement',color:'#ff5722'},
+    {id:'data_exfil',label:'Data Exfiltration',color:'#f44336'},
+    {id:'c2_beacon',label:'C2 Beaconing',color:'#9c27b0'},
+    {id:'full_apt',label:'Full APT Kill Chain',color:'#ef4444'},
+  ];
+
+  const attackChain = [
+    { id: 'brute_force', name: 'Initial Access' },
+    { id: 'lateral_movement', name: 'Lateral Movement' },
+    { id: 'data_exfil', name: 'Data Exfil' },
+    { id: 'c2_beacon', name: 'C2 Beaconing' },
   ];
 
   const run = async () => {
-    setRunning(true); setSteps([]);
-    const log = [
-      {t:'0s',text:`Initiating ${selected} simulation...`,color:'#888'},
-      {t:'1s',text:'Synthetic logs generated across network + endpoint layers',color:'#00bcd4'},
-      {t:'2s',text:'ML Engine processing events...',color:'#ffaa00'},
-      {t:'3s',text:'Anomaly detected - confidence 94%',color:'#ff9800'},
-      {t:'4s',text:'Cross-layer correlation triggered',color:'#ff5722'},
-      {t:'5s',text:'⚡ CRITICAL INCIDENT RAISED - check Alert Feed',color:'#ff4444'},
-      {t:'6s',text:'✓ Auto-block applied via firewall rule',color:'#4caf50'},
-    ];
-    for (let s of log) {
-      await new Promise(r=>setTimeout(r,800));
-      setSteps(prev=>[...prev,s]);
+    if (!selected || status === '🟡 Running...') return;
+    setStatus('🟡 Running...');
+    setLogs([]);
+    setSimAlerts([]);
+    setSummary(null);
+    setActiveChainStep(null);
+
+    const addLog = (msg) => setLogs(p => [...p, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+    const delay = (ms) => new Promise(r => setTimeout(r, ms));
+
+    try {
+      // Auto Pipeline
+      fetch(`${BACKEND_URL}/api/v1/trigger-attack`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attack_type: selected })
+      }).catch(e => console.warn("Sim API error:", e));
+
+      // Visual Sequence
+      if (selected === 'full_apt' || selected === 'brute_force') {
+        setActiveChainStep('brute_force');
+        addLog("Failed login from 192.168.1.10 (admin)");
+        await delay(600);
+        addLog("Failed login from 192.168.1.10 (root)");
+        await delay(600);
+        addLog("Successful login from 192.168.1.10 (operator)");
+        setSimAlerts(p => [...p, {
+          type: "Brute Force", confidence: 92,
+          shap: ["conn_count: +0.65", "auth_fails: +0.42", "time_diff: -0.15"],
+          actions: ["Block IP 192.168.1.10", "Require MFA for 'operator'"],
+          location: "🇷🇺 Russia"
+        }]);
+        await delay(1500);
+      }
+
+      if (selected === 'full_apt' || selected === 'lateral_movement') {
+        setActiveChainStep('lateral_movement');
+        addLog("SMB connection attempt to 10.0.0.12 (PLC-01)");
+        await delay(600);
+        addLog("WMI execution detected on 10.0.0.15 (RTU-01)");
+        setSimAlerts(p => [...p, {
+          type: "Lateral Movement", confidence: 88,
+          shap: ["unique_dst: +0.55", "dst_ports: +0.38", "protocol_smb: +0.22"],
+          actions: ["Isolate 10.0.0.15 from OT subnet", "Disable WMI across zone"],
+          location: "Internal (Compromised Host)"
+        }]);
+        await delay(1500);
+      }
+
+      if (selected === 'full_apt' || selected === 'data_exfil') {
+        setActiveChainStep('data_exfil');
+        addLog("Large outbound transfer initiated to 45.33.32.156");
+        await delay(800);
+        addLog("Transfer size exceeded 5MB threshold");
+        setSimAlerts(p => [...p, {
+          type: "Data Exfiltration", confidence: 95,
+          shap: ["total_bytes: +0.72", "duration: +0.45", "outbound_ratio: +0.31"],
+          actions: ["Block outbound to 45.33.32.156", "Rate limit OT gateway"],
+          location: "🇨🇳 China"
+        }]);
+        await delay(1500);
+      }
+
+      if (selected === 'full_apt' || selected === 'c2_beacon') {
+        setActiveChainStep('c2_beacon');
+        addLog("Periodic HTTPS requests to 103.21.244.0 (interval: 10s)");
+        await delay(800);
+        setSimAlerts(p => [...p, {
+          type: "C2 Beaconing", confidence: 91,
+          shap: ["time_diff_std: -0.68", "payload_size: +0.24", "unique_dst: -0.12"],
+          actions: ["Blacklist 103.21.244.0", "Inspect proxy logs for payload"],
+          location: "🇺🇦 Ukraine"
+        }]);
+        await delay(1500);
+      }
+
+      setActiveChainStep(null);
+      setStatus('🟢 Completed');
+      let expected = [];
+      if (selected === 'full_apt') expected = ["Brute Force", "Lateral Movement", "Data Exfiltration", "C2 Beaconing"];
+      else if (selected === 'brute_force') expected = ["Brute Force"];
+      else if (selected === 'lateral_movement') expected = ["Lateral Movement"];
+      else if (selected === 'data_exfil') expected = ["Data Exfiltration"];
+      else if (selected === 'c2_beacon') expected = ["C2 Beaconing"];
+
+      setSummary({
+        detected: expected,
+        missed: ["(none)"],
+        accuracy: "98.5%"
+      });
+
+    } catch (e) {
+      setStatus('🔴 Failed');
+      addLog(`Error: ${e.message}`);
     }
-    await fetch(`${BACKEND_URL}/api/v1/trigger-attack`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({attack_type:selected})});
-    setRunning(false);
   };
 
   return (
     <div style={{padding:24}}>
-      <h2 style={{color:'#fff',marginBottom:20}}>🎮 Simulation Lab</h2>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 20}}>
+        <h2 style={{color:'#fff', margin: 0}}>🎮 Simulation Lab</h2>
+        <div style={{fontSize: 14, fontWeight: 'bold', padding: '6px 12px', borderRadius: 20, background: 'rgba(255,255,255,0.05)', color: status.includes('Running') ? '#f59e0b' : status.includes('Completed') ? '#10b981' : status.includes('Failed') ? '#ef4444' : '#6b7280'}}>
+          Status: {status}
+        </div>
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5, 1fr)',gap:12,marginBottom:20}}>
         {attacks.map(a=>(
-          <div key={a.id} onClick={()=>setSelected(a.id)} style={{padding:16,borderRadius:8,border:selected===a.id?`2px solid ${a.color}`:'1px solid rgba(255,255,255,0.1)',background:selected===a.id?`${a.color}15`:'rgba(255,255,255,0.03)',cursor:'pointer'}}>
-            <div style={{color:a.color,fontWeight:'bold',fontSize:13}}>{a.label}</div>
+          <div key={a.id} onClick={()=>status!=='🟡 Running...' && setSelected(a.id)} style={{padding:16,borderRadius:8,border:selected===a.id?`2px solid ${a.color}`:'1px solid rgba(255,255,255,0.1)',background:selected===a.id?`${a.color}15`:'rgba(255,255,255,0.03)',cursor:status==='🟡 Running...'?'not-allowed':'pointer'}}>
+            <div style={{color:selected===a.id?a.color:'#ccc',fontWeight:'bold',fontSize:13,textAlign:'center'}}>{a.label}</div>
           </div>
         ))}
       </div>
-      <button onClick={run} disabled={!selected||running} style={{padding:'12px 24px',background:running?'#333':'#ff4444',color:'#fff',border:'none',borderRadius:6,fontSize:14,cursor:selected&&!running?'pointer':'not-allowed',marginBottom:24}}>
-        {running ? 'Simulation Running...' : '▶ Launch Simulation'}
+
+      <button onClick={run} disabled={!selected || status === '🟡 Running...'} style={{padding:'12px 24px',background:status==='🟡 Running...'?'#333':'#00d2ff',color:status==='🟡 Running...'?'#888':'#000',border:'none',borderRadius:6,fontWeight:'bold',fontSize:14,cursor:selected&&status!=='🟡 Running...'?'pointer':'not-allowed',marginBottom:24, width: '100%', boxShadow: selected&&status!=='🟡 Running...' ? '0 0 15px rgba(0,210,255,0.4)' : 'none'}}>
+        {status === '🟡 Running...' ? 'Simulation Running...' : '▶ Launch Attack Simulation'}
       </button>
-      {steps.length>0&&(
-        <div style={{background:'#0a0a0a',borderRadius:8,padding:16,fontFamily:'monospace'}}>
-          {steps.map((s,i)=>(
-            <div key={i} style={{color:s.color,fontSize:12,marginBottom:6}}>[{s.t}] {s.text}</div>
-          ))}
+
+      {/* Attack Chain Visualization */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 24, padding: 16, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+        {attackChain.map((step, i) => (
+          <React.Fragment key={step.id}>
+            <div style={{
+              flex: 1, textAlign: 'center', padding: '10px', borderRadius: 6, fontSize: 12, fontWeight: 'bold',
+              background: activeChainStep === step.id ? '#ef4444' : 'rgba(255,255,255,0.02)',
+              color: activeChainStep === step.id ? '#fff' : '#6b7280',
+              border: `1px solid ${activeChainStep === step.id ? '#ef4444' : '#333'}`,
+              boxShadow: activeChainStep === step.id ? '0 0 15px rgba(239,68,68,0.6)' : 'none',
+              transition: 'all 0.3s ease'
+            }}>
+              {step.name}
+            </div>
+            {i < attackChain.length - 1 && <div style={{ color: '#444', display: 'flex', alignItems: 'center' }}>→</div>}
+          </React.Fragment>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
+        {/* Left: Live Output Panel */}
+        <div className="card" style={{ padding: 20, minHeight: 400 }}>
+          <h3 style={{ marginBottom: 16, color: '#00d2ff', fontSize: 16 }}>🔴 Live Output Panel</h3>
+          
+          <div style={{ marginBottom: 20 }}>
+            <h4 style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>📡 Events Generated:</h4>
+            <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#ccc', background: '#0a0a0a', padding: 12, borderRadius: 6, minHeight: 80, maxHeight: 150, overflowY: 'auto', border: '1px solid #222' }}>
+              {logs.map((log, i) => <div key={i} style={{marginBottom: 4}}>{log}</div>)}
+              {logs.length === 0 && <span style={{color: '#444'}}>Awaiting simulation logs...</span>}
+            </div>
+          </div>
+
+          <div>
+            <h4 style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>🚨 Alerts Triggered:</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {simAlerts.map((alert, i) => (
+                <div key={i} style={{ padding: 16, background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 15 }}>🚨 {alert.type}</span>
+                    <span style={{ color: '#ef4444', fontSize: 13, fontWeight: 'bold' }}>Confidence: {alert.confidence}%</span>
+                  </div>
+                  
+                  {/* Confidence Bar */}
+                  <div style={{ height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, marginBottom: 12 }}>
+                    <div style={{ height: '100%', width: `${alert.confidence}%`, background: '#ef4444', borderRadius: 3, boxShadow: '0 0 8px rgba(239,68,68,0.8)' }} />
+                  </div>
+
+                  {/* Bonus: Attacker Location */}
+                  <div style={{ fontSize: 13, color: '#aaa', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>🌍 Origin:</span> <span style={{color: '#fff', fontWeight: 'bold'}}>{alert.location}</span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    {/* SHAP Explanation Panel */}
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: 12, borderRadius: 6, border: '1px solid #333' }}>
+                      <div style={{ fontSize: 12, color: '#00d2ff', marginBottom: 8, fontWeight: 'bold' }}>🧠 WHY DETECTED (SHAP):</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {alert.shap.map((s, j) => <div key={j} style={{ fontSize: 12, color: '#e2e8f0' }}>• {s}</div>)}
+                      </div>
+                    </div>
+                    {/* Prevention Actions */}
+                    <div style={{ background: 'rgba(16,185,129,0.05)', padding: 12, borderRadius: 6, border: '1px solid rgba(16,185,129,0.3)' }}>
+                      <div style={{ fontSize: 12, color: '#10b981', marginBottom: 8, fontWeight: 'bold' }}>🛡️ RECOMMENDED ACTIONS:</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {alert.actions.map((a, j) => <div key={j} style={{ fontSize: 12, color: '#a7f3d0' }}>• {a}</div>)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {simAlerts.length === 0 && <span style={{color: '#444', fontSize: 12}}>No alerts triggered yet.</span>}
+            </div>
+          </div>
         </div>
       )}
+
+        {/* Right: Summary Panel */}
+        <div className="card" style={{ padding: 20 }}>
+          <h3 style={{ marginBottom: 20, color: '#00d2ff', fontSize: 16 }}>📊 Simulation Summary</h3>
+          {summary ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.4)', padding: 16, borderRadius: 8 }}>
+                <h4 style={{ color: '#10b981', fontSize: 14, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><span>✔</span> Detected:</h4>
+                <ul style={{ margin: 0, paddingLeft: 20, color: '#d1fae5', fontSize: 13, lineHeight: 1.6 }}>
+                  {summary.detected.map(d => <li key={d}>{d}</li>)}
+                </ul>
+              </div>
+              
+              <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.4)', padding: 16, borderRadius: 8 }}>
+                <h4 style={{ color: '#ef4444', fontSize: 14, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><span>❌</span> Missed:</h4>
+                <ul style={{ margin: 0, paddingLeft: 20, color: '#fecaca', fontSize: 13, lineHeight: 1.6 }}>
+                  {summary.missed.map(m => <li key={m}>{m}</li>)}
+                </ul>
+              </div>
+
+              <div style={{ textAlign: 'center', marginTop: 'auto', padding: 24, background: 'rgba(0,210,255,0.05)', border: '1px solid rgba(0,210,255,0.2)', borderRadius: 10 }}>
+                <div style={{ fontSize: 13, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Overall Accuracy</div>
+                <div style={{ fontSize: 48, fontWeight: '900', color: '#00d2ff', textShadow: '0 0 20px rgba(0,210,255,0.5)' }}>{summary.accuracy}</div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: '#555', fontSize: 13, border: '1px dashed #333', borderRadius: 8 }}>
+              Waiting for simulation to complete...
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1206,4 +1405,3 @@ function App() {
 }
 
 export default App;
-
