@@ -146,7 +146,7 @@ function NmapTrafficGraph({ trafficHistory, scanData, scanning, isUnderAttack, t
       </div>
       {scanData?.rogue_count > 0 && (
         <div style={{ position:'absolute', bottom:4, left:8, background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.5)', borderRadius:4, padding:'2px 8px', fontSize:10, color:'#ef4444', fontWeight:700 }}>
-          âš  {scanData.rogue_count} ROGUE DEVICE{scanData.rogue_count > 1 ? 'S' : ''} DETECTED
+          ⚠ {scanData.rogue_count} ROGUE DEVICE{scanData.rogue_count > 1 ? 'S' : ''} DETECTED
         </div>
       )}
     </div>
@@ -191,10 +191,10 @@ function AttackBanner({ statusData, onManualBlock, onReset, blocking }) {
   return (
     <div style={{ position:'fixed', top:0, left:0, right:0, zIndex:1000, background: blocked ? 'rgba(16,185,129,0.97)' : 'rgba(220,20,20,0.97)', borderBottom:`2px solid ${blocked ? '#10b981' : '#ff0000'}`, padding:'10px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', boxShadow:`0 0 40px ${blocked ? '#10b98188' : '#ff000088'}`, animation: blocked ? 'none' : 'flashBanner 1s infinite' }}>
       <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-        <span style={{ fontSize:22 }}>{blocked ? '🛡️' : '🚨'}</span>
+        <span style={{ fontSize:22 }}>{blocked ? '🛡' : '🚨'}</span>
         <div>
           <div style={{ color:'#fff', fontWeight:800, fontSize:14, letterSpacing:1 }}>
-            {blocked ? `ATTACKER BLOCKED â€” ${ip} (by ${by === 'auto' ? 'ML Engine' : 'Officer'})` : `ACTIVE ATTACK DETECTED â€” ${ip}`}
+            {blocked ? `ATTACKER BLOCKED — ${ip} (by ${by === 'auto' ? 'ML Engine' : 'Officer'})` : `ACTIVE ATTACK DETECTED — ${ip}`}
           </div>
           <div style={{ color: blocked ? '#d1fae5' : '#fecaca', fontSize:11 }}>
             {blocked ? 'Firewall rule applied. Network securing...' : `Attack type: ${statusData?.active_threat} · Target: PLC-01`}
@@ -205,13 +205,13 @@ function AttackBanner({ statusData, onManualBlock, onReset, blocking }) {
         {!blocked && (
           <>
             <button onClick={onManualBlock} disabled={blocking} style={{ background: blocking ? '#374151' : '#fff', color: blocking ? '#9ca3af' : '#dc2626', border:'none', borderRadius:6, padding:'8px 20px', fontWeight:800, fontSize:13, cursor: blocking ? 'not-allowed' : 'pointer', boxShadow:'0 0 15px rgba(0,0,0,0.3)' }}>
-              {blocking ? '⏳ Blocking...' : 'ðŸ›‘ BLOCK ATTACKER'}
+              {blocking ? '⏳ Blocking...' : '🛑 BLOCK ATTACKER'}
             </button>
             <button onClick={onReset} style={{ background:'transparent', color:'#fecaca', border:'1px solid rgba(255,255,255,0.4)', borderRadius:6, padding:'8px 16px', fontWeight:700, fontSize:12, cursor:'pointer' }}>✕ Dismiss</button>
           </>
         )}
         {blocked && (
-          <button onClick={onReset} style={{ background:'#065f46', color:'#d1fae5', border:'1px solid #10b981', borderRadius:6, padding:'8px 18px', fontWeight:700, fontSize:12, cursor:'pointer' }}>âœ“ Clear & Reset</button>
+          <button onClick={onReset} style={{ background:'#065f46', color:'#d1fae5', border:'1px solid #10b981', borderRadius:6, padding:'8px 18px', fontWeight:700, fontSize:12, cursor:'pointer' }}>✓ Clear & Reset</button>
         )}
       </div>
     </div>
@@ -266,7 +266,7 @@ function ScadaTopology({ isUnderAttack, theme = 'dark' }) {
         ctx.font="14px Inter,sans-serif";ctx.textAlign="center";ctx.fillStyle=light ? '#1d4ed8' : '#fff';ctx.fillText(n.icon,n.x,n.y+2);ctx.font="10px Inter,sans-serif";ctx.fillStyle=n.glow>0.05?(hit?"#ff8866":"#88ccff"):(light ? '#334155' : '#8b949e');ctx.fillText(n.label,n.x,n.y+30);
       });
       ctx.beginPath();ctx.roundRect(CX-70,CY-27,140,54,8);ctx.fillStyle=light ? '#ffffff' : '#0044ff';ctx.shadowColor=light ? 'rgba(37,99,235,0.22)' : '#0044ff';ctx.shadowBlur=20;ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=light ? 'rgba(37,99,235,0.35)' : 'transparent';ctx.lineWidth=light ? 1.2 : 0;if(light)ctx.stroke();ctx.fillStyle=light ? '#1d4ed8' : '#fff';ctx.font="bold 12px Inter,sans-serif";ctx.textAlign="center";ctx.fillText("SCADA SERVER",CX,CY+4);
-      if(atk){const tg=tgtNode.glow;ctx.beginPath();ctx.roundRect(THREAT.x-50,THREAT.y-26,100,48,8);ctx.fillStyle=tg>0.05?`rgba(100,0,0,${0.5+tg*0.5})`:"#1a0000";ctx.shadowColor="#ff2200";ctx.shadowBlur=tg>0.05?24*tg:6;ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=tg>0.05?`rgba(255,50,0,${0.5+tg*0.5})`:"#660000";ctx.lineWidth=tg>0.05?2:1;ctx.stroke();ctx.font="bold 13px Inter";ctx.textAlign="center";ctx.fillStyle=tg>0.05?`rgba(255,100,80,${0.7+tg*0.3})`:"#aa3333";ctx.fillText("â˜ ",THREAT.x,THREAT.y-6);ctx.font="11px Inter";ctx.fillStyle=tg>0.05?`rgba(255,120,100,${0.7+tg*0.3})`:"#882222";ctx.fillText("45.X.X.X",THREAT.x,THREAT.y+12);}
+      if(atk){const tg=tgtNode.glow;ctx.beginPath();ctx.roundRect(THREAT.x-50,THREAT.y-26,100,48,8);ctx.fillStyle=tg>0.05?`rgba(100,0,0,${0.5+tg*0.5})`:"#1a0000";ctx.shadowColor="#ff2200";ctx.shadowBlur=tg>0.05?24*tg:6;ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=tg>0.05?`rgba(255,50,0,${0.5+tg*0.5})`:"#660000";ctx.lineWidth=tg>0.05?2:1;ctx.stroke();ctx.font="bold 13px Inter";ctx.textAlign="center";ctx.fillStyle=tg>0.05?`rgba(255,100,80,${0.7+tg*0.3})`:"#aa3333";ctx.fillText("☠",THREAT.x,THREAT.y-6);ctx.font="11px Inter";ctx.fillStyle=tg>0.05?`rgba(255,120,100,${0.7+tg*0.3})`:"#882222";ctx.fillText("45.X.X.X",THREAT.x,THREAT.y+12);}
       sweepAngle+=SPEED;if(sweepAngle>Math.PI*2)sweepAngle-=Math.PI*2;
       rafId=requestAnimationFrame(draw);
     }
@@ -275,7 +275,7 @@ function ScadaTopology({ isUnderAttack, theme = 'dark' }) {
   }, []);
   return (
     <div style={{width:'100%',height:'100%',borderRadius:10,overflow:"hidden",position:'relative'}}>
-      <div style={{position:'absolute',top:'15px',left:'15px',color:theme === 'light' ? '#1e3a5f' : '#e2e8f0',fontSize:'14px',fontWeight:'bold',zIndex:10}}>â¬©â¬© LIVE NETWORK TOPOLOGY</div>
+      <div style={{position:'absolute',top:'15px',left:'15px',color:theme === 'light' ? '#1e3a5f' : '#e2e8f0',fontSize:'14px',fontWeight:'bold',zIndex:10}}>◎ LIVE NETWORK TOPOLOGY</div>
       <canvas ref={canvasRef} width={680} height={480} style={{width:"100%",height:"100%",objectFit:"contain",display:"block"}} />
     </div>
   );
@@ -328,7 +328,7 @@ function IncidentResponseTab({ statusData, alerts, incidentData, isUnderAttack, 
     { label:'Data Exfiltration',     done: false,         active: false },
   ];
 
-  // Affected assets â€” mix of static ICS + real alert data
+  // Affected assets - mix of static ICS + real alert data
   const affectedAssets = [
     { host:'PLC-01',         type:'PLC',                 status: isUnderAttack ? 'Compromised' : 'Online',  severity: isUnderAttack ? 'Critical' : 'Low',  time:'14:47:23' },
     { host:'HMI-D1',         type:'HMI',                 status: isUnderAttack ? 'At Risk'     : 'Online',  severity: isUnderAttack ? 'Critical' : 'Low',  time:'14:46:58' },
@@ -348,11 +348,11 @@ const highlightedSteps = activeSteps[statusData?.active_threat] || [];
 
   // Playbook actions
   const playbookActions = [
-    { icon:'🛡️', title:'Contain affected hosts',      assignee:'J. Martinez', status: isUnderAttack ? 'In Progress' : 'Standby' },
-    { icon:'ðŸ”‘', title:'Disable compromised creds',   assignee:'A. Chen',     status: isUnderAttack ? 'In Progress' : 'Standby' },
+    { icon:'🛡', title:'Contain affected hosts',      assignee:'J. Martinez', status: isUnderAttack ? 'In Progress' : 'Standby' },
+    { icon:'🔑', title:'Disable compromised creds',   assignee:'A. Chen',     status: isUnderAttack ? 'In Progress' : 'Standby' },
     { icon:'🚫', title:'Block malicious IP range',    assignee:'System',      status: statusData?.attacker_blocked ? 'Done' : isUnderAttack ? 'Pending' : 'Standby' },
-    { icon:'ðŸ“¢', title:'Notify CISO',                 assignee:'System',      status: isUnderAttack ? 'Pending'    : 'Standby' },
-    { icon:'ðŸ“¸', title:'Trigger forensic snapshot',   assignee:'System',      status: isUnderAttack ? 'Pending'    : 'Standby' },
+    { icon:'📢', title:'Notify CISO',                 assignee:'System',      status: isUnderAttack ? 'Pending'    : 'Standby' },
+    { icon:'📸', title:'Trigger forensic snapshot',   assignee:'System',      status: isUnderAttack ? 'Pending'    : 'Standby' },
   ];
 
   const statusColor = (s) => {
@@ -375,7 +375,7 @@ const highlightedSteps = activeSteps[statusData?.active_threat] || [];
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
-      {/* â”€â”€ CRITICAL INCIDENT BANNER â”€â”€ */}
+      {/* CRITICAL INCIDENT BANNER */}
       {isUnderAttack && (
         <div style={{
           background:'linear-gradient(135deg,rgba(239,68,68,0.15),rgba(220,38,38,0.08))',
@@ -385,7 +385,7 @@ const highlightedSteps = activeSteps[statusData?.active_threat] || [];
           animation:'flashBanner 2s infinite',
         }}>
           <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-            <span style={{ fontSize:24 }}>âš ï¸</span>
+            <span style={{ fontSize:24 }}>⚠</span>
             <div>
               <div style={{ color:'#ef4444', fontWeight:800, fontSize:15, letterSpacing:1 }}>
                 CRITICAL INCIDENT ACTIVE
@@ -409,19 +409,19 @@ const highlightedSteps = activeSteps[statusData?.active_threat] || [];
                 background:'#dc2626', color:'#fff', border:'none', borderRadius:8,
                 padding:'10px 20px', fontWeight:800, fontSize:13, cursor: blocking ? 'not-allowed' : 'pointer',
               }}>
-                {blocking ? '⏳ Blocking...' : 'ðŸ›‘ Execute Containment'}
+                {blocking ? '⏳ Blocking...' : '🛑 Execute Containment'}
               </button>
             )}
             {statusData?.attacker_blocked && (
               <div style={{ background:'rgba(16,185,129,0.15)', border:'1px solid #10b981', borderRadius:8, padding:'10px 16px', color:'#10b981', fontWeight:700, fontSize:13 }}>
-                âœ“ Contained
+                ✓ Contained
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* â”€â”€ ATTACK CHAIN PROGRESS â”€â”€ */}
+      {/* ATTACK CHAIN PROGRESS */}
       <div className="card" style={{ padding:20 }}>
         <div className="card-title" style={{ marginBottom:20 }}>Attack Chain Progress</div>
         <div style={{ display:'flex', alignItems:'center', gap:0 }}>
@@ -439,7 +439,7 @@ const highlightedSteps = activeSteps[statusData?.active_threat] || [];
                   animation: stage.active ? 'flashBanner 1.5s infinite' : 'none',
                 }}>
                   {stage.done
-                    ? <span style={{ fontSize:18 }}>âœ“</span>
+                    ? <span style={{ fontSize:18 }}>✓</span>
                     : stage.active
                       ? <span style={{ color:'#ef4444', fontWeight:800, fontSize:16 }}>{i+1}</span>
                       : <span style={{ color:'#6b7280', fontSize:16 }}>{i+1}</span>
@@ -466,15 +466,15 @@ const highlightedSteps = activeSteps[statusData?.active_threat] || [];
 
       {/* Cross-layer correlation */}
 <div className="card" style={{padding:20}}>
-  <div className="card-title" style={{marginBottom:16}}>ðŸ”— Cross-Layer Correlated Incidents</div>
+  <div className="card-title" style={{marginBottom:16}}>🔗 Cross-Layer Correlated Incidents</div>
   {!isUnderAttack ? (
-    <p style={{color:'#555',fontSize:12}}>No correlated incidents â€” monitoring all layers</p>
+    <p style={{color:'#555',fontSize:12}}>No correlated incidents - monitoring all layers</p>
   ) : (
     <div>
       {[
         {time:'Now',layer:'network',desc:'Unusual outbound traffic spike (+430%)'},
         {time:'+3s',layer:'endpoint',desc:'powershell.exe spawned by winlogon.exe'},
-        {time:'+3s',layer:'application',desc:'POST /upload â€” 98KB payload to unknown IP'},
+        {time:'+3s',layer:'application',desc:'POST /upload - 98KB payload to unknown IP'},
       ].map((e,i)=>(
         <div key={i} style={{display:'flex',gap:12,marginBottom:12}}>
           <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
@@ -491,14 +491,14 @@ const highlightedSteps = activeSteps[statusData?.active_threat] || [];
         </div>
       ))}
       <div style={{padding:'8px 12px',background:'rgba(255,68,68,0.1)',borderRadius:6,border:'1px solid #ff444444',display:'flex',justifyContent:'space-between'}}>
-        <span style={{color:'#ff4444',fontSize:12,fontWeight:'bold'}}>⚡ CORRELATED: Data Exfiltration â€” CRITICAL</span>
+        <span style={{color:'#ff4444',fontSize:12,fontWeight:'bold'}}>⚡ CORRELATED: Data Exfiltration - CRITICAL</span>
         <span style={{color:'#888',fontSize:11}}>3 layers · 94% confidence</span>
       </div>
     </div>
   )}
 </div>
 
-      {/* â”€â”€ TWO COLUMN: affected assets + playbook â”€â”€ */}
+      {/* TWO COLUMN: affected assets + playbook */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:16 }}>
 
         {/* Affected Assets */}
@@ -594,13 +594,13 @@ const highlightedSteps = activeSteps[statusData?.active_threat] || [];
               border:'1px solid rgba(139,92,246,0.4)', borderRadius:8,
               padding:'9px', fontWeight:700, fontSize:12, cursor:'pointer',
             }}>
-              â†‘ Escalate to Tier 3
+              ↑ Escalate to Tier 3
             </button>
           )}
         </div>
       </div>
 
-      {/* â”€â”€ SOC COMMUNICATION â”€â”€ */}
+      {/* SOC COMMUNICATION */}
       <div className="card" style={{ padding:20 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
           <div className="card-title">SOC Communication</div>
@@ -634,7 +634,7 @@ const highlightedSteps = activeSteps[statusData?.active_threat] || [];
           {/* Auto-add attack log entry */}
           {isUnderAttack && socLog.length === 1 && (
             <div style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
-              <div style={{ width:28, height:28, borderRadius:'50%', flexShrink:0, background:'rgba(239,68,68,0.2)', border:'1px solid #ef444444', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 }}>âš </div>
+              <div style={{ width:28, height:28, borderRadius:'50%', flexShrink:0, background:'rgba(239,68,68,0.2)', border:'1px solid #ef444444', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 }}>⚠</div>
               <div>
                 <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                   <span style={{ color:'#ef4444', fontWeight:700, fontSize:12 }}>System</span>
@@ -670,7 +670,7 @@ const highlightedSteps = activeSteps[statusData?.active_threat] || [];
         </div>
       </div>
 
-      {/* â”€â”€ NETWORK CHANNEL INFO â”€â”€ */}
+      {/* NETWORK CHANNEL INFO */}
       {isUnderAttack && (
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
           <div className="card bg-grad-cyan" style={{ padding:20 }}>
@@ -718,10 +718,10 @@ function SimulationLab({ BACKEND_URL }) {
       {t:'0s',text:`Initiating ${selected} simulation...`,color:'#888'},
       {t:'1s',text:'Synthetic logs generated across network + endpoint layers',color:'#00bcd4'},
       {t:'2s',text:'ML Engine processing events...',color:'#ffaa00'},
-      {t:'3s',text:'Anomaly detected â€” confidence 94%',color:'#ff9800'},
+      {t:'3s',text:'Anomaly detected - confidence 94%',color:'#ff9800'},
       {t:'4s',text:'Cross-layer correlation triggered',color:'#ff5722'},
-      {t:'5s',text:'⚡ CRITICAL INCIDENT RAISED â€” check Alert Feed',color:'#ff4444'},
-      {t:'6s',text:'âœ“ Auto-block applied via firewall rule',color:'#4caf50'},
+      {t:'5s',text:'⚡ CRITICAL INCIDENT RAISED - check Alert Feed',color:'#ff4444'},
+      {t:'6s',text:'✓ Auto-block applied via firewall rule',color:'#4caf50'},
     ];
     for (let s of log) {
       await new Promise(r=>setTimeout(r,800));
@@ -742,7 +742,7 @@ function SimulationLab({ BACKEND_URL }) {
         ))}
       </div>
       <button onClick={run} disabled={!selected||running} style={{padding:'12px 24px',background:running?'#333':'#ff4444',color:'#fff',border:'none',borderRadius:6,fontSize:14,cursor:selected&&!running?'pointer':'not-allowed',marginBottom:24}}>
-        {running?'Simulation Running...':'â–¶ Launch Simulation'}
+        {running ? 'Simulation Running...' : '▶ Launch Simulation'}
       </button>
       {steps.length>0&&(
         <div style={{background:'#0a0a0a',borderRadius:8,padding:16,fontFamily:'monospace'}}>
@@ -827,7 +827,7 @@ function App() {
       const data = await res.json();
       if (data.status === 'blocked' || data.status === 'already_blocked') {
         setStatusData(prev => ({ ...prev, attacker_blocked:true, blocked_by:'manual' }));
-        setBlockMsg(`âœ“ Blocked ${data.ip} â€” Firewall: ${data.firewall}`);
+        setBlockMsg(`✓ Blocked ${data.ip} - Firewall: ${data.firewall}`);
         setTimeout(fetchData, 500);
       } else {
         setBlockMsg(data.message || data.status);
@@ -872,18 +872,18 @@ function App() {
 
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <span className="logo-shield text-cyan">🛡️</span>
+          <span className="logo-shield text-cyan">🛡</span>
           <h2>Yantraraksha <span className="text-cyan">Network</span></h2>
         </div>
         <ul className="sidebar-menu">
           {[
-            ['dashboard',         'ðŸ“Š Dashboard'],
-            ['discovery',         '🕸️ Discovery'],
+            ['dashboard',         '📊 Dashboard'],
+            ['discovery',         '🕸 Discovery'],
             ['alert_feed',        '⚡ Alert Feed'],
-            ['device_registry',   '🗄️ Device Registry'],
+            ['device_registry',   '🗄 Device Registry'],
             ['incident_response', '🚨 Incident Response'],
             ['ml_engine',         '🤖 ML Anomaly Engine'],
-            ['simulation_lab', '🎮 Simulation Lab'],
+            ['simulation_lab',    '🎮 Simulation Lab'],
           ].map(([key, label]) => (
             <li key={key} className={activeTab===key?'active':''} onClick={()=>setActiveTab(key)}>
               {label}
@@ -895,11 +895,11 @@ function App() {
         </ul>
         <div className="sidebar-footer">
           <div style={{fontSize:10,color:'#6b7280',marginBottom:6,textAlign:'center'}}>
-            {scanning ? <span style={{color:'#f59e0b'}}>⏳ Nmap scanning...</span> : lastScan ? <span style={{color:'#10b981'}}>âœ“ Nmap: {scanData?.total_found??0} hosts</span> : <span>Nmap: waiting</span>}
+            {scanning ? <span style={{color:'#f59e0b'}}>⏳ Nmap scanning...</span> : lastScan ? <span style={{color:'#10b981'}}>✓ Nmap: {scanData?.total_found??0} hosts</span> : <span>Nmap: waiting</span>}
           </div>
           {isUnderAttack && !statusData?.attacker_blocked && (
             <button onClick={handleManualBlock} disabled={blocking} style={{ width:'100%', marginBottom:8, background:'#dc2626', color:'#fff', border:'none', borderRadius:6, padding:'8px', fontWeight:800, fontSize:12, cursor:'pointer', animation:'flashBanner 1s infinite' }}>
-              {blocking ? '⏳ Blocking...' : 'ðŸ›‘ KILL SWITCH'}
+              {blocking ? '⏳ Blocking...' : '🛑 KILL SWITCH'}
             </button>
           )}
           <div className={`status-badge ${isUnderAttack?'border-flash text-red':'border-cyan text-cyan'}`}>
@@ -914,7 +914,22 @@ function App() {
           <h2>{activeTab.replace('_',' ').toUpperCase()}</h2>
           <div className="header-right">
   <span>Factory: TN Automotive Cluster</span>
-  <span className="live-mon">â± Live Monitoring</span>
+  <span
+    className="live-mon"
+    style={{ display:'inline-flex', alignItems:'center', gap:6 }}
+  >
+    <span
+      aria-hidden="true"
+      style={{
+        width:8,
+        height:8,
+        borderRadius:'50%',
+        background:'#00d2ff',
+        boxShadow:'0 0 10px rgba(0,210,255,0.8)',
+      }}
+    />
+    Live Monitoring
+  </span>
 
   {/* Theme toggle */}
   <button
@@ -928,14 +943,15 @@ function App() {
       display: 'flex', alignItems: 'center', gap: 6,
     }}
   >
-    {theme === 'dark' ? 'â˜€ï¸ Light' : 'ðŸŒ™ Dark'}
+    {theme === 'dark' ? '☀ Light' : '☾ Dark'}
   </button>
 
   {/* User + Logout */}
   <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-    <span style={{ color:'#475569', fontSize:11 }}>
-      ðŸ‘¤ <span style={{ color:'#00d2ff', fontWeight:700 }}>{currentUser?.username}</span>
-      <span style={{ color:'#334155', marginLeft:4 }}>· {currentUser?.role}</span>
+    <span style={{ color:'#475569', fontSize:11, display:'inline-flex', alignItems:'center', gap:6 }}>
+      <span aria-hidden="true" style={{ fontSize:12 }}>👤</span>
+      <span style={{ color:'#00d2ff', fontWeight:700 }}>{currentUser?.username}</span>
+      <span style={{ color:'#334155' }}>· {currentUser?.role}</span>
     </span>
     <button
       onClick={() => {
@@ -950,14 +966,14 @@ function App() {
         fontWeight:700, cursor:'pointer',
       }}
     >
-      â» LOGOUT
+      ↪ LOGOUT
     </button>
   </div>
 </div>
         </header>
 
         {blockMsg && (
-          <div style={{ margin:'0 0 12px', padding:'8px 16px', borderRadius:6, background: blockMsg.startsWith('âœ“') ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', border:`1px solid ${blockMsg.startsWith('âœ“') ? '#10b981' : '#ef4444'}44`, color: blockMsg.startsWith('âœ“') ? '#10b981' : '#ef4444', fontSize:13 }}>
+          <div style={{ margin:'0 0 12px', padding:'8px 16px', borderRadius:6, background: blockMsg.startsWith('✓') ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', border:`1px solid ${blockMsg.startsWith('✓') ? '#10b981' : '#ef4444'}44`, color: blockMsg.startsWith('✓') ? '#10b981' : '#ef4444', fontSize:13 }}>
             {blockMsg}
           </div>
         )}
@@ -970,11 +986,11 @@ function App() {
                 <div className="kpi-value text-cyan">{scanData?.total_found ?? statusData.devices_online}</div>              <div style={{fontSize:10,color:'#6b7280',marginTop:4}}>{scanData ? `${scanData.hosts?.filter(h=>h.status==='TRUSTED').length??0} trusted · ${scanData.rogue_count??0} rogue` : 'Loading scan...'}</div>
             </div>
             <div className={`card kpi-card ${isUnderAttack?'bg-grad-red border-flash':'bg-grad-cyan'} pos-kpi2`}>
-              <div className="kpi-top"><span className={`kpi-icon ${isUnderAttack?'alert-bg text-red':'text-cyan'}`}>{isUnderAttack?'🚨':'âœ…'}</span><span className="kpi-title">Network Status</span></div>
+              <div className="kpi-top"><span className={`kpi-icon ${isUnderAttack?'alert-bg text-red':'text-cyan'}`}>{isUnderAttack ? '🚨' : '✓'}</span><span className="kpi-title">Network Status</span></div>
               <div className={`kpi-value ${isUnderAttack?'text-red':'text-cyan'}`}>{statusData?.attacker_blocked ? 'CONTAINED' : isUnderAttack ? 'DANGER' : 'SAFE'}</div>
             </div>
             <div className={`card kpi-card ${isUnderAttack?'bg-grad-red border-flash':'bg-grad-cyan'} pos-kpi3`}>
-              <div className="kpi-top"><span className={`kpi-icon ${isUnderAttack?'alert-bg text-red':'text-cyan'}`}>âš ï¸</span><span className="kpi-title">Active Alerts</span></div>
+              <div className="kpi-top"><span className={`kpi-icon ${isUnderAttack?'alert-bg text-red':'text-cyan'}`}>⚠</span><span className="kpi-title">Active Alerts</span></div>
               <div className={`kpi-value ${isUnderAttack?'text-red':'text-cyan'}`}>{statusData.critical_alerts}</div>
             </div>
             <div className="card traffic-card pos-traffic">
@@ -1014,7 +1030,7 @@ function App() {
               <ThreatMap alerts={alerts} blockedIPs={blockedIPs} theme={theme} />
             </div>
             <div className="card right-card pos-ai">
-              <div className="panel-header"><div className="card-title"><span className="kpi-icon text-cyan">🤖</span> AI Threat Detection</div><span className="dots-menu">â€¢â€¢â€¢</span></div>
+              <div className="panel-header"><div className="card-title"><span className="kpi-icon text-cyan">🤖</span> AI Threat Detection</div><span className="dots-menu">•••</span></div>
               <div className="panel-body">
                 <div className="ai-row"><span className="ai-label">Model Status:</span><span className="ai-val text-white">{statusData.baseline_status}</span></div>
                 <div className="ai-row"><span className="ai-label">Predicted Threat:</span><span className="ai-val text-white">{statusData.active_threat}</span></div>
@@ -1028,7 +1044,7 @@ function App() {
                 </div>
                 {isUnderAttack && !statusData?.attacker_blocked && (
                   <button onClick={handleManualBlock} disabled={blocking} style={{ marginTop:12, width:'100%', background:'#dc2626', color:'#fff', border:'none', borderRadius:6, padding:'7px', fontWeight:800, fontSize:12, cursor:blocking?'not-allowed':'pointer' }}>
-                    {blocking ? '⏳ Blocking...' : `ðŸ›‘ Block ${statusData?.current_threat_ip}`}
+                    {blocking ? '⏳ Blocking...' : `🛑 Block ${statusData?.current_threat_ip}`}
                   </button>
                 )}
               </div>
@@ -1079,8 +1095,8 @@ function App() {
             <div className="card bg-grad-cyan">
               <div className="card-title">Shadow IT Scanner <span style={{fontSize:10,color:'#6b7280'}}>via Nmap</span></div>
               {scanData?.rogue_count > 0 ? (
-                <div className="mt-2">{scanData.hosts.filter(h=>h.status==='ROGUE').map((h,i)=>(<div key={i} style={{color:'#ef4444',fontWeight:700,fontSize:13,padding:'4px 0',borderBottom:'1px solid rgba(239,68,68,0.2)'}}>â˜  {h.ip}{h.open_ports && <span style={{fontSize:10,color:'#f97316',marginLeft:8}}>Ports: {Object.keys(h.open_ports).join(', ')}</span>}</div>))}</div>
-              ) : (<p className="text-dim mt-2" style={{color:'#10b981'}}>âœ“ No unauthorized devices detected</p>)}
+                <div className="mt-2">{scanData.hosts.filter(h=>h.status==='ROGUE').map((h,i)=>(<div key={i} style={{color:'#ef4444',fontWeight:700,fontSize:13,padding:'4px 0',borderBottom:'1px solid rgba(239,68,68,0.2)'}}>☠ {h.ip}{h.open_ports && <span style={{fontSize:10,color:'#f97316',marginLeft:8}}>Ports: {Object.keys(h.open_ports).join(', ')}</span>}</div>))}</div>
+              ) : (<p className="text-dim mt-2" style={{color:'#10b981'}}>✓ No unauthorized devices detected</p>)}
             </div>
           </div>
         )}
@@ -1089,23 +1105,23 @@ function App() {
         {activeTab === 'alert_feed' && (
           <div style={{display:'flex',flexDirection:'column',gap:16}}>
             <div className="card" style={{padding:16}}>
-              <div className="card-title" style={{marginBottom:12}}>ðŸŒ Global Attack Origin Map <span style={{marginLeft:10,color:'#6b7280',fontSize:11,fontWeight:'normal'}}>â€” drag to rotate â€” live attacker IPs plotted</span></div>
+              <div className="card-title" style={{marginBottom:12}}>🌐 Global Attack Origin Map <span style={{marginLeft:10,color:'#6b7280',fontSize:11,fontWeight:'normal'}}>- drag to rotate - live attacker IPs plotted</span></div>
               <ThreatMap alerts={alerts} blockedIPs={blockedIPs} theme={theme} height="400px" />
             </div>
             <div className="card traffic-card">
               <div className="card-title" style={{display:'flex',justifyContent:'space-between'}}>
                 <span>Network Traffic Graph</span>
                 <span style={{fontSize:11,color:'#6b7280',display:'flex',gap:12}}>
-                  {scanData&&<><span style={{color:'#10b981'}}>âœ“ {scanData.hosts?.filter(h=>h.status==='TRUSTED').length} trusted</span>{scanData.rogue_count>0&&<span style={{color:'#ef4444'}}>âš  {scanData.rogue_count} rogue</span>}<span>Total: {scanData.total_found}</span></>}
-                  <span style={{color:scanning?'#f59e0b':'#00d2ff'}}>{scanning?'⏳ Scanning...':'â— Nmap Live'}</span>
+                  {scanData&&<><span style={{color:'#10b981'}}>✓ {scanData.hosts?.filter(h=>h.status==='TRUSTED').length} trusted</span>{scanData.rogue_count>0&&<span style={{color:'#ef4444'}}>⚠ {scanData.rogue_count} rogue</span>}<span>Total: {scanData.total_found}</span></>}
+                  <span style={{color:scanning?'#f59e0b':'#00d2ff'}}>{scanning?'⏳ Scanning...':'● Nmap Live'}</span>
                 </span>
               </div>
               <div style={{height:180,marginTop:8}}><NmapTrafficGraph trafficHistory={trafficHistory} scanData={scanData} scanning={scanning} isUnderAttack={isUnderAttack} theme={theme} height={180} /></div>
             </div>
             <div className="card alerts-mid-card">
-              <div className="card-title" style={{marginBottom:12}}>⚡ Live Alert Feed â€” {alerts.length} alerts â€” ML detected â€” MITRE mapped</div>
+              <div className="card-title" style={{marginBottom:12}}>⚡ Live Alert Feed - {alerts.length} alerts - ML detected - MITRE mapped</div>
               {alerts.length === 0 ? (
-                <div style={{textAlign:'center',color:'#00d2ff',padding:40}}>No alerts yet â€” ML engine analyzing traffic...</div>
+                <div style={{textAlign:'center',color:'#00d2ff',padding:40}}>No alerts yet - ML engine analyzing traffic...</div>
               ) : alerts.map((a,i)=>(
                 <div key={i} style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:8 }}>
                   <div style={{ padding:'10px 14px', borderRadius:6, background:'rgba(0,210,255,0.05)', borderLeft:`3px solid ${a.severity==='CRITICAL'?'#ef4444':a.severity==='HIGH'?'#f97316':'#00d2ff'}` }}>
@@ -1116,16 +1132,16 @@ function App() {
                         <span className={`solid-pill ${a.severity.toLowerCase()}`}>{a.severity}</span>
                       </div>
                     </div>
-                    <div style={{color:'#6b7280',fontSize:11,marginTop:4}}>{a.source_ip} â†’ {a.destination_ip} · {new Date(a.timestamp).toLocaleTimeString()}</div>
+                    <div style={{color:'#6b7280',fontSize:11,marginTop:4}}>{a.source_ip} → {a.destination_ip} · {new Date(a.timestamp).toLocaleTimeString()}</div>
                   </div>
                   <div style={{padding:'8px 10px',background:'rgba(0,188,212,0.05)',borderRadius:6,borderLeft:'2px solid #00bcd4'}}>
                     <div style={{color:'#00bcd4',fontSize:10,marginBottom:4}}>WHY FLAGGED</div>
                     {(a.reasons || ['High outbound bytes detected','Unknown destination IP','Suspicious process activity']).map((r,ri)=>(
-                      <div key={ri} style={{color:'#ccc',fontSize:11,marginBottom:2}}>â€¢ {r}</div>
+                      <div key={ri} style={{color:'#ccc',fontSize:11,marginBottom:2}}>• {r}</div>
                     ))}
                     <div style={{marginTop:6,display:'flex',gap:8}}>
-                      <button onClick={()=>submitFeedback(a.id,'confirmed')} style={{background:'#ff444422',border:'1px solid #ff4444',color:'#ff4444',borderRadius:4,padding:'2px 8px',fontSize:10,cursor:'pointer'}}>âœ“ Confirm</button>
-                      <button onClick={()=>submitFeedback(a.id,'false_positive')} style={{background:'#ffff0022',border:'1px solid #ffff00',color:'#ffff00',borderRadius:4,padding:'2px 8px',fontSize:10,cursor:'pointer'}}>âš  False Positive</button>
+                      <button onClick={()=>submitFeedback(a.id,'confirmed')} style={{background:'#ff444422',border:'1px solid #ff4444',color:'#ff4444',borderRadius:4,padding:'2px 8px',fontSize:10,cursor:'pointer'}}>✓ Confirm</button>
+                      <button onClick={()=>submitFeedback(a.id,'false_positive')} style={{background:'#ffff0022',border:'1px solid #ffff00',color:'#ffff00',borderRadius:4,padding:'2px 8px',fontSize:10,cursor:'pointer'}}>⚠ False Positive</button>
                     </div>
                   </div>
                 </div>
@@ -1143,7 +1159,7 @@ function App() {
               <tbody>
                 {devices.map((n,i)=>(
                   <tr key={i} className={n.type==="Threat"?"flash-bg":""}>
-                    <td className={n.type==="Threat"?"text-red font-bold":"text-white"}>{n.type==="Threat"?'â˜ ï¸ ':''}{n.name}</td>
+                    <td className={n.type==="Threat"?"text-red font-bold":"text-white"}>{n.type==="Threat"?'☠ ':''}{n.name}</td>
                     <td className="text-dim">{n.ip}</td>
                     <td className="text-dim">TCP/IP</td>
                     <td><span className={`solid-pill ${n.status==='ONLINE'?'low':n.status==='BLOCKED'?'medium':'critical'}`}>{n.status}</span></td>
@@ -1154,7 +1170,7 @@ function App() {
           </div>
         )}
 
-        {/* INCIDENT RESPONSE â€” NEW SOC DASHBOARD */}
+        {/* INCIDENT RESPONSE - NEW SOC DASHBOARD */}
         {activeTab === 'incident_response' && (
           <IncidentResponseTab
             statusData={statusData}
