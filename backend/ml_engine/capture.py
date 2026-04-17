@@ -5,7 +5,9 @@ import json
 import joblib
 import numpy as np
 import pandas as pd
+import ipaddress
 from detect import detect_network_flow
+from threat_classifier import ThreatClassifier
 
 # ── Load models for ensemble voting ──────────────────────────
 print("Loading models...")
@@ -56,6 +58,24 @@ flows = defaultdict(lambda: {
 })
 
 alert_log = []
+classifier = ThreatClassifier()
+
+
+def _is_private_ip(ip):
+    try:
+        return ipaddress.ip_address(ip).is_private
+    except ValueError:
+        return False
+
+
+def _event_direction(src, dst):
+    src_private = _is_private_ip(src)
+    dst_private = _is_private_ip(dst)
+    if src_private and not dst_private:
+        return "outbound"
+    if src_private and dst_private:
+        return "internal"
+    return "external"
 
 
 # ── Improvement 3: Port filter applied here ───────────────────
@@ -180,9 +200,9 @@ def analyze_flow(key, flow):
         # Both models must agree it's an attack
         both_agree = (iso_pred == -1) and (rf_pred == 1)
 
-        # Get attack type
+        # Get ML attack type
         rf_multi_pred = rf_multi.predict(X_scaled)[0]
-        attack_type   = label_enc.inverse_transform([rf_multi_pred])[0]
+        ml_predicted_label = label_enc.inverse_transform([rf_multi_pred])[0]
 
         # MITRE mapping
         MITRE_MAP = {
@@ -205,6 +225,10 @@ def analyze_flow(key, flow):
             'replay'   : 'HIGH',
             'mitm'     : 'HIGH',
             'ddos'     : 'CRITICAL',
+            'Brute Force': 'HIGH',
+            'Lateral Movement': 'HIGH',
+            'Data Exfiltration': 'CRITICAL',
+            'C2 Beaconing': 'HIGH',
         }
 
         # ── Improvement 1: Confidence threshold ──────────────
@@ -214,7 +238,18 @@ def analyze_flow(key, flow):
         and confidence > 85.0    # raised from 70 to 85
         and flow['src'] not in WHITELIST
         and flow['dst'] not in WHITELIST
-        and attack_type != 'Normal'):
+        and ml_predicted_label != 'Normal'):
+            event = {
+                'src': flow['src'],
+                'dst': flow['dst'],
+                'bytes': flow['sBytesSum'],
+                'time': time.time(),
+                'direction': _event_direction(flow['src'], flow['dst']),
+                'type': 'network',
+                'status': 'observed',
+            }
+            classified_attack = classifier.classify(event)
+            attack_type = classified_attack or ml_predicted_label
             alert = {
                 'src'        : flow['src'],
                 'dst'        : flow['dst'],
@@ -223,6 +258,8 @@ def analyze_flow(key, flow):
                 'confidence' : round(confidence, 2),
                 'mitre'      : MITRE_MAP.get(attack_type, 'Unknown'),
                 'risk'       : RISK_MAP.get(attack_type, 'Unknown'),
+                'event'      : event,
+                'ml_label'   : ml_predicted_label,
             }
             alert_log.append(alert)
 

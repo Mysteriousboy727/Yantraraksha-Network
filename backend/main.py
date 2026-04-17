@@ -406,6 +406,36 @@ async def ml_control(req: MLControlRequest):
 # ==========================================
 # API 9 — BLOCKED IPs
 # ==========================================
+class FeedbackRequest(BaseModel):
+    alert_id: str
+    decision: str
+
+@app.post("/api/v1/feedback")
+def submit_feedback(req: FeedbackRequest):
+    now = datetime.datetime.utcnow().isoformat()
+    matched_alert = None
+
+    for alert in ALERT_HISTORY:
+        if str(alert.get("id")) == str(req.alert_id):
+            alert["feedback"] = req.decision
+            alert["feedback_at"] = now
+            matched_alert = alert
+            break
+
+    INCIDENT_LOG.append({
+        "time": now,
+        "event": f"ALERT FEEDBACK: {req.alert_id} -> {req.decision}",
+        "actor": "OFFICER",
+        "severity": "LOW",
+    })
+
+    return {
+        "status": "recorded",
+        "alert_id": req.alert_id,
+        "decision": req.decision,
+        "found": matched_alert is not None,
+    }
+
 @app.get("/api/v1/blocked-ips")
 def get_blocked_ips():
     return {"total": len(BLOCKED_IPS), "blocked": BLOCKED_IPS}

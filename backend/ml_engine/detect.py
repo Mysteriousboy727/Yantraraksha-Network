@@ -6,6 +6,26 @@ import time
 from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
+from attack_rules import AttackRules
+import ipaddress
+from explain import explain_prediction
+
+rules = AttackRules()
+
+
+def _is_private_ip(ip):
+    try:
+        return ipaddress.ip_address(str(ip)).is_private
+    except ValueError:
+        return False
+
+
+def _event_direction(src, dst):
+    if _is_private_ip(src) and not _is_private_ip(dst):
+        return "outbound"
+    if _is_private_ip(src) and _is_private_ip(dst):
+        return "internal"
+    return "external"
 
 # ── Load all trained models ───────────────────────────────────
 print("Loading models...")
@@ -17,6 +37,7 @@ scaler        = joblib.load('models/network_scaler.pkl')
 plc_scaler    = joblib.load('models/plc_scaler.pkl')
 label_enc     = joblib.load('models/label_encoder.pkl')
 proto_enc     = joblib.load('models/protocol_encoder.pkl')
+selector      = joblib.load('models/feature_selector.pkl')
 feature_cols  = joblib.load('models/feature_cols.pkl')
 plc_feat_cols = joblib.load('models/plc_feature_cols.pkl')
 print("All models loaded.\n")
@@ -27,7 +48,11 @@ SEVERITY = {
     'port-scan': 'MEDIUM',
     'replay'   : 'HIGH',
     'mitm'     : 'HIGH',
-    'ddos'     : 'CRITICAL'
+    'ddos'     : 'CRITICAL',
+    'Brute Force': 'HIGH',
+    'Lateral Movement': 'HIGH',
+    'Data Exfiltration': 'CRITICAL',
+    'C2 Beaconing': 'HIGH',
 }
 
 MITRE_MAP = {
@@ -62,34 +87,86 @@ def detect_network_flow(flow_dict):
         X = pd.DataFrame([row])
         X = X.fillna(0).replace([np.inf, -np.inf], 0)
         X_scaled = scaler.transform(X)
+        X_selected = selector.transform(X_scaled)
 
-        # Model 1 — Isolation Forest score
-        iso_score = iso_forest.decision_function(X_scaled)[0]
-        iso_pred  = iso_forest.predict(X_scaled)[0]
-        is_anomaly = (iso_pred == -1)
+        # Get Scores
+        iso_scores = iso_forest.decision_function(X_scaled)
+        rf_probs = rf_binary.predict_proba(X_selected)
 
-        # Model 2 — Binary classification
-        rf_binary_pred = rf_binary.predict(X_scaled)[0]
-        rf_binary_prob = rf_binary.predict_proba(X_scaled)[0]
-        confidence = max(rf_binary_prob) * 100
+        # WEIGHTED ENSEMBLE LOGIC
+        final_pred = []
+        confidence_scores = []
 
-        # Model 3 — Attack type
-        rf_multi_pred = rf_multi.predict(X_scaled)[0]
-        attack_type   = label_enc.inverse_transform([rf_multi_pred])[0]
+        for i in range(len(rf_probs)):
+            rf_score = rf_probs[i][1]   # attack probability
+            iso_score = -iso_scores[i]  # anomaly → higher = more suspicious
 
-        # Final verdict — if both models agree it's an attack
-        is_attack = (rf_binary_pred == 1)
+            # normalize iso score (handles both batch and single item processing)
+            min_iso, max_iso = min(-iso_scores), max(-iso_scores)
+            if min_iso == max_iso:
+                iso_score_norm = 1.0 if iso_score > 0 else 0.0
+            else:
+                iso_score_norm = (iso_score - min_iso) / (max_iso - min_iso + 1e-6)
+
+            # weighted fusion
+            combined_score = 0.7 * rf_score + 0.3 * iso_score_norm
+
+            if combined_score > 0.6:
+                final_pred.append(1)
+            else:
+                final_pred.append(0)
+
+            confidence_scores.append(combined_score * 100)
+
+        # MULTI-CLASS ONLY IF ATTACK
+        attack_type_list = []
+        for i in range(len(final_pred)):
+            if final_pred[i] == 1:
+                pred = rf_multi.predict([X_selected[i]])[0]
+                attack_type_list.append(label_enc.inverse_transform([pred])[0])
+            else:
+                attack_type_list.append("Normal")
+
+        is_anomaly = (iso_scores[0] < 0)
+        is_attack = (final_pred[0] == 1)
+        confidence = confidence_scores[0]
+        ml_attack_type = attack_type_list[0]
+
+        event = {
+            'src': flow_dict.get('src', '0.0.0.0'),
+            'dst': flow_dict.get('dst', '0.0.0.0'),
+            'bytes': flow_dict.get('sBytesSum', flow_dict.get('sPayloadSum', 0)),
+            'time': flow_dict.get('time', time.time()),
+            'direction': _event_direction(flow_dict.get('src', '0.0.0.0'), flow_dict.get('dst', '0.0.0.0')),
+            'type': flow_dict.get('type', 'network'),
+            'status': flow_dict.get('status', 'observed'),
+        }
+        
+        rule_attack = rules.classify(event)
+        if rule_attack:
+            ml_attack_type = rule_attack
+            is_attack = True
+            
+        final_attack_type = ml_attack_type
+
+        explanation = explain_prediction(flow_dict)
+        explanation_formatted = [
+            f"{feat}: {round(val, 2)}" for feat, val in explanation
+        ]
 
         result = {
             'timestamp'    : datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'is_attack'    : bool(is_attack),
             'is_anomaly'   : bool(is_anomaly),
-            'attack_type'  : attack_type if is_attack else 'Normal',
-            'severity'     : SEVERITY.get(attack_type if is_attack else 'Normal', 'LOW'),
+            'attack_type'  : final_attack_type,
+            'severity'     : SEVERITY.get(final_attack_type, 'LOW'),
             'confidence'   : round(confidence, 2),
-            'anomaly_score': round(float(iso_score), 4),
-            'mitre'        : MITRE_MAP.get(attack_type if is_attack else 'Normal'),
-            'risk'         : RISK_MAP.get(attack_type if is_attack else 'Normal'),
+            'anomaly_score': round(float(-iso_scores[0]), 4),
+            'mitre'        : MITRE_MAP.get(final_attack_type, 'None'),
+            'risk'         : RISK_MAP.get(final_attack_type, 'No risk'),
+            'ml_attack_type': ml_attack_type,
+            'event': event,
+            'explanation'  : explanation_formatted,
         }
         return result
 
